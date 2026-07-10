@@ -47,7 +47,7 @@ GeomTimelineConnector <- ggplot2::ggproto(
   "GeomTimelineConnector",
   ggplot2::Geom,
 
-  required_aes = c("x", "y", ".timeline_elbow_x", ".timeline_label_y"),
+  required_aes = c("x", "y", ".timeline_label_x", ".timeline_label_y"),
   default_aes = ggplot2::aes(
     size = 0.4,
     colour = "grey50",
@@ -73,20 +73,26 @@ GeomTimelineConnector <- ggplot2::ggproto(
       line_lty <- row$linetype %||% linetype
       alpha_val <- row$alpha %||% 1
 
+      anchor_x <- row$x
+      label_x <- if (".timeline_label_x" %in% names(row)) row$.timeline_label_x else anchor_x
+      label_y <- row$.timeline_label_y
+
       if (isTRUE(elbowed)) {
-        seg1 <- data.frame(
-          x = c(row$x, row$.timeline_elbow_x),
-          y = c(row$y, row$y)
-        )
-        seg2 <- data.frame(
-          x = c(row$.timeline_elbow_x, row$.timeline_elbow_x),
-          y = c(row$y, row$.timeline_label_y)
-        )
-        seg_list <- list(seg1, seg2)
+        if (abs(.date_to_numeric(label_x) - .date_to_numeric(anchor_x)) > 1e-6) {
+          seg_list <- list(
+            data.frame(x = c(anchor_x, anchor_x), y = c(row$y, label_y)),
+            data.frame(x = c(anchor_x, label_x), y = c(label_y, label_y))
+          )
+        } else {
+          seg_list <- list(data.frame(
+            x = c(anchor_x, anchor_x),
+            y = c(row$y, label_y)
+          ))
+        }
       } else {
         seg_list <- list(data.frame(
-          x = c(row$x, row$x),
-          y = c(row$y, row$.timeline_label_y)
+          x = c(anchor_x, label_x),
+          y = c(row$y, label_y)
         ))
       }
 
@@ -172,11 +178,12 @@ GeomTimelineEndpoint <- ggplot2::ggproto(
     if (nrow(data) == 0L) {
       return(grid::nullGrob())
     }
+    data$x <- if (".timeline_label_x" %in% names(data)) data$.timeline_label_x else data$x
     data$y <- data$.timeline_label_y
     coords <- ggplot2::coord_munch(coord, data, panel_params)
     grid::pointsGrob(
       x = coords$x,
-      y = coords$.timeline_label_y,
+      y = coords$y,
       pch = coords$shape,
       gp = grid::gpar(
         col = alpha(coords$colour, coords$alpha),

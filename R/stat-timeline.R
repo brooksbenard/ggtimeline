@@ -101,23 +101,29 @@ StatTimeline <- ggplot2::ggproto(
       labels = labels,
       config = config
     )
-    tiers <- .compute_label_heights(dates, sides, labels, config)
+    resolved <- .resolve_side_conflicts(
+      dates = dates,
+      labels = labels,
+      sides = sides,
+      config = config,
+      label_size = 3.2,
+      boxed = FALSE
+    )
+    label_y <- resolved$label_y
+    label_x_num <- resolved$label_x
+    tiers <- resolved$tiers
 
-    sign <- ifelse(sides == "above", 1, -1)
-    label_y <- sign * (config$base_height + (tiers - 1L) * config$height_step)
-    span <- max(diff(range(dates)), 1)
-    elbow_x_num <- dates + sign * config$elbow_fraction * config$base_height *
-      (config$label_width_days / span)
-    if (inherits(data$x, "Date") || is.numeric(data$x) && mean(dates) > 10000) {
-      elbow_x <- as.Date(elbow_x_num, origin = "1970-01-01")
+    if (inherits(data$x, "Date") || (is.numeric(data$x) && mean(dates, na.rm = TRUE) > 10000)) {
+      label_x <- as.Date(label_x_num, origin = "1970-01-01")
     } else {
-      elbow_x <- elbow_x_num
+      label_x <- label_x_num
     }
 
     data$.timeline_x <- dates
     data$.timeline_y <- rep(config$axis_y, nrow(data))
+    data$.timeline_label_x <- label_x
     data$.timeline_label_y <- label_y
-    data$.timeline_elbow_x <- elbow_x
+    data$.timeline_anchor_x <- data$x
     data$.timeline_side <- sides
     data$.timeline_tier <- tiers
     data$y <- data$.timeline_y

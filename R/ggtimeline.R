@@ -42,6 +42,10 @@
 #' @param year_colours Optional character vector of colours cycling across
 #'   year labels.
 #' @param year_offset Distance of year labels from the axis in y-units.
+#' @param label_method Label placement algorithm: `"auto"` (default) uses
+#'   anno_mark-style spreading with optional repulsion in dense clusters,
+#'   `"mark"` forces horizontal+vertical spreading, `"repel"` adds a repulsion
+#'   pass (soft dependency on **ggrepel**), `"simple"` uses basic tier stacking.
 #' @param date_breaks Date breaks for the (hidden) x scale; used mainly when
 #'   `year_breaks = NULL`.
 #' @param date_labels Date label format for the x scale when `year_breaks = NULL`.
@@ -71,11 +75,12 @@ ggtimeline <- function(data,
                        style = c("classic", "ribbon", "minimal", "milestone"),
                        side = c("auto", "alternate", "above", "below"),
                        elbowed = TRUE,
-                       base_height = 1,
-                       height_step = 0.6,
-                       label_width_days = 90,
-                       label_size = 3.2,
-                       min_gap_days = 14,
+                       base_height = 1.1,
+                       height_step = 0.75,
+                       label_width_days = 100,
+                       label_size = 3,
+                       min_gap_days = 21,
+                       label_method = c("auto", "mark", "repel", "simple"),
                        axis_y = 0,
                        axis_arrow = TRUE,
                        start_cap = NULL,
@@ -88,11 +93,12 @@ ggtimeline <- function(data,
                        year_offset = 0.32,
                        date_breaks = ggplot2::waiver(),
                        date_labels = "%Y",
-                       expand = 0.08,
-                       background = "#F5F4F0") {
+                       expand = 0.1,
+                       background = "white") {
   style <- match.arg(style)
   side <- match.arg(side)
   year_side <- match.arg(year_side)
+  label_method <- match.arg(label_method)
   style_params <- .timeline_style_params(style)
 
   if (missing(mapping)) {
@@ -136,7 +142,10 @@ ggtimeline <- function(data,
     topic_col = label_col,
     side = side,
     config = config,
-    group_col = cols$group
+    group_col = cols$group,
+    label_size = label_size,
+    boxed = isTRUE(style_params$label_box),
+    label_method = label_method
   )
 
   plot_df <- cbind(data, layout)
@@ -179,7 +188,7 @@ ggtimeline <- function(data,
     y_vals <- c(y_vals, year_y)
   }
   y_range <- range(y_vals, na.rm = TRUE)
-  y_pad <- max(diff(y_range) * 0.12, 0.55)
+  y_pad <- max(diff(y_range) * 0.14, 0.65)
 
   p <- ggplot2::ggplot(plot_df, mapping)
 
@@ -228,7 +237,7 @@ ggtimeline <- function(data,
     mapping = ggplot2::aes(
       x = .data[[cols$date]],
       y = y,
-      .timeline_elbow_x = .timeline_elbow_x,
+      .timeline_label_x = .timeline_label_x,
       .timeline_label_y = .timeline_label_y
     ),
     inherit.aes = TRUE,
@@ -241,9 +250,10 @@ ggtimeline <- function(data,
   if (isTRUE(style_params$endpoint)) {
     p <- p + geom_timeline_endpoint(
       mapping = ggplot2::aes(
-        x = .data[[cols$date]],
+        x = .timeline_label_x,
         .timeline_label_y = .timeline_label_y
       ),
+      inherit.aes = FALSE,
       fill = style_params$point_fill,
       stat = "identity",
       size = 4.8,
@@ -254,7 +264,7 @@ ggtimeline <- function(data,
   if (isTRUE(style_params$label_box)) {
     p <- p + ggplot2::geom_label(
       mapping = ggplot2::aes(
-        x = .data[[cols$date]],
+        x = .timeline_label_x,
         y = .timeline_label_y,
         label = .data[[label_col]]
       ),
@@ -273,6 +283,7 @@ ggtimeline <- function(data,
       mapping = ggplot2::aes(
         x = .data[[cols$date]],
         label = .data[[label_col]],
+        .timeline_label_x = .timeline_label_x,
         .timeline_label_y = .timeline_label_y,
         .timeline_side = .timeline_side
       ),

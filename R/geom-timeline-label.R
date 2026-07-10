@@ -65,7 +65,7 @@ GeomTimelineLabel <- ggplot2::ggproto(
   "GeomTimelineLabel",
   ggplot2::Geom,
 
-  required_aes = c("x", "label", ".timeline_label_y", ".timeline_side"),
+  required_aes = c("x", "label", ".timeline_label_x", ".timeline_label_y", ".timeline_side"),
   default_aes = ggplot2::aes(
     y = NULL,
     size = 3.5,
@@ -82,6 +82,8 @@ GeomTimelineLabel <- ggplot2::ggproto(
 
   draw_key = ggplot2::draw_key_text,
 
+  extra_params = c("na.rm", "boxed", "label.size", "label.padding", "label.r"),
+
   draw_panel = function(data, panel_params, coord, boxed = FALSE,
                         label.size = 0.15,
                         label.padding = grid::unit(0.25, "lines"),
@@ -91,6 +93,7 @@ GeomTimelineLabel <- ggplot2::ggproto(
       return(grid::nullGrob())
     }
 
+    data$x <- if (".timeline_label_x" %in% names(data)) data$.timeline_label_x else data$x
     data$y <- data$.timeline_label_y
     data$hjust <- ifelse(
       data$.timeline_side == "above",

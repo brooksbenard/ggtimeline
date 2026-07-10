@@ -12,11 +12,12 @@ ggtimeline(
   style = c("classic", "ribbon", "minimal", "milestone"),
   side = c("auto", "alternate", "above", "below"),
   elbowed = TRUE,
-  base_height = 1,
-  height_step = 0.6,
-  label_width_days = 90,
-  label_size = 3.2,
-  min_gap_days = 14,
+  base_height = 1.1,
+  height_step = 0.75,
+  label_width_days = 100,
+  label_size = 3,
+  min_gap_days = 21,
+  label_method = c("auto", "mark", "repel", "simple"),
   axis_y = 0,
   axis_arrow = TRUE,
   start_cap = NULL,
@@ -29,8 +30,8 @@ ggtimeline(
   year_offset = 0.32,
   date_breaks = ggplot2::waiver(),
   date_labels = "\%Y",
-  expand = 0.08,
-  background = "#F5F4F0"
+  expand = 0.1,
+  background = "white"
 )
 }
 \arguments{
@@ -62,6 +63,11 @@ detection.}
 \item{label_size}{Topic label text size.}
 
 \item{min_gap_days}{Minimum horizontal gap between labels on the same side.}
+
+\item{label_method}{Label placement algorithm: \code{"auto"} (default) uses
+anno_mark-style spreading with optional repulsion in dense clusters,
+\code{"mark"} forces horizontal+vertical spreading, \code{"repel"} adds a repulsion
+pass (soft dependency on \strong{ggrepel}), \code{"simple"} uses basic tier stacking.}
 
 \item{axis_y}{Y position of the timeline axis.}
 

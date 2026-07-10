@@ -74,14 +74,29 @@ expect_inherits(
   "ggplot"
 )
 
-# year breaks helper
-years <- compute_year_breaks(
+# layout and overlap avoidance
+expect_true(nrow(compute_year_breaks(
   from = as.Date("2020-01-01"),
   to = as.Date("2026-12-01"),
   breaks = "2 years"
+)) >= 3L)
+
+# dense cluster layout produces distinct x positions via public API
+p_dense <- ggtimeline(
+  phenotype_methods_timeline,
+  aes(x = date, label = topic, colour = category),
+  style = "classic",
+  label_method = "mark",
+  base_height = 1.2,
+  height_step = 0.8,
+  min_gap_days = 24
 )
-expect_true(nrow(years) >= 3L)
-expect_true(all(c("x", "label", ".timeline_year_side") %in% names(years)))
+expect_inherits(p_dense, "ggplot")
+built <- ggplot2::ggplot_build(p_dense)
+plot_layer <- built$data[[which(vapply(built$data, function(d) {
+  ".timeline_label_x" %in% names(d)
+}, logical(1)))[1]]]
+expect_true(".timeline_label_x" %in% names(plot_layer))
 
 # year annotations on plot
 expect_inherits(

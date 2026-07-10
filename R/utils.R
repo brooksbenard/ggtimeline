@@ -294,42 +294,6 @@ compute_year_breaks <- function(from, to,
   tier
 }
 
-.build_layout <- function(data, date_col, topic_col, side, config, group_col = NULL) {
-  dates <- .date_to_numeric(data[[date_col]])
-  labels <- as.character(data[[topic_col]])
-  sides <- .compute_sides(dates, sides = side, labels = labels, config = config)
-  tiers <- .compute_label_heights(dates, sides, labels, config)
-
-  sign <- ifelse(sides == "above", 1, -1)
-  label_y <- sign * (config$base_height + (tiers - 1L) * config$height_step)
-  axis_y <- rep(config$axis_y, length(dates))
-
-  span <- max(diff(range(dates)), 1)
-  elbow_x_num <- dates + sign * config$elbow_fraction * config$base_height *
-    (config$label_width_days / span)
-
-  if (inherits(data[[date_col]], "Date")) {
-    elbow_x <- as.Date(elbow_x_num, origin = "1970-01-01")
-  } else {
-    elbow_x <- elbow_x_num
-  }
-
-  out <- data.frame(
-    .timeline_x = dates,
-    .timeline_y = axis_y,
-    .timeline_label = labels,
-    .timeline_side = sides,
-    .timeline_tier = tiers,
-    .timeline_label_y = label_y,
-    .timeline_elbow_x = elbow_x,
-    stringsAsFactors = FALSE
-  )
-  if (!is.null(group_col) && group_col %in% names(data)) {
-    out$.timeline_group <- data[[group_col]]
-  }
-  out
-}
-
 .elbow_segments <- function(x, y, label_y, elbow_x, side) {
   n <- length(x)
   x1 <- numeric(0)
@@ -345,7 +309,7 @@ compute_year_breaks <- function(from, to,
   data.frame(x = x1, y = y1, xend = x2, yend = y2)
 }
 
-.timeline_theme <- function(base_size = 11, background = "#F5F4F0") {
+.timeline_theme <- function(base_size = 11, background = "white") {
   ggplot2::theme_void(base_size = base_size) +
     ggplot2::theme(
       plot.background = ggplot2::element_rect(fill = background, colour = NA),

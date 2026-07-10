@@ -43,9 +43,11 @@ ggtimeline(
   side = "auto",
   year_breaks = "2 years",      # "auto", "5 years", or c(2020, 2022, 2024)
   year_side = "alternate",       # alternate above/below axis
-  base_height = 1.1,             # label distance from axis
-  height_step = 0.7,             # extra spacing per overlap tier
-  label_size = 3,
+  base_height = 1.2,             # label distance from axis
+  height_step = 0.8,             # extra spacing per overlap tier
+  min_gap_days = 24,             # horizontal gap between labels
+  label_method = "mark",         # anno_mark-style spreading (default: "auto")
+  label_size = 2.8,
   axis_arrow = TRUE              # arrow points toward the future
 ) +
   scale_timeline_colour() +
@@ -144,11 +146,14 @@ ggplot(phenotype_methods_timeline, aes(x = date, label = topic, colour = categor
 
 ## Label placement & spacing
 
-- **`side = "auto"`** — picks above or below to minimise overlap (default)
-- **`side = "alternate"`** — alternates above/below
-- **`side = "above"` / `"below"`** — force one side
+Dense clusters use **anno_mark-style** spreading: labels shift horizontally and stack vertically to avoid overlap. A repulsion pass (`label_method = "repel"`) is applied automatically in tight clusters when **ggrepel** is installed.
+
+- **`label_method = "auto"`** — spreading + repulsion in dense regions (default)
+- **`label_method = "mark"`** — horizontal+vertical box placement (ComplexHeatmap-style)
+- **`side = "auto"`** — picks above or below to minimise overlap
 - **`base_height`** — distance from axis to the first label tier
 - **`height_step`** — additional vertical offset when labels overlap on the same side
+- **`min_gap_days`** — minimum horizontal gap between label boxes
 - **`label_size`** — topic label text size
 - **`elbowed = TRUE`** — horizontal-then-vertical connector elbows
 
