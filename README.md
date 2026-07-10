@@ -9,9 +9,26 @@ Flexible timeline visualisations for [ggplot2](https://ggplot2.tidyverse.org/). 
 remotes::install_github("brooksbenard/ggtimeline")
 ```
 
-## Quick start
+## Demo: phenotype mapping methods timeline
 
-The package includes demo data from the [phenotype mapping methods](https://github.com/brooksbenard/scIMPEL/blob/main/docs/phenotype-mapping-methods.md) reference guide:
+The bundled `phenotype_methods_timeline` dataset contains 40 computational methods from the [phenotype-mapping-methods](https://github.com/brooksbenard/scIMPEL/blob/main/docs/phenotype-mapping-methods.md) reference guide, with publication dates, method categories, and citation counts.
+
+Run the interactive demo:
+
+```r
+library(ggtimeline)
+demo(phenotype_methods_timeline)
+```
+
+Or run the full example script:
+
+```r
+source(system.file("examples", "phenotype-methods-timeline-demo.R", package = "ggtimeline"))
+```
+
+### Classic style
+
+Methods coloured by data modality (`bulk+sc`, `sc cohort`, `spatial+bulk`, etc.):
 
 ```r
 library(ggplot2)
@@ -22,11 +39,54 @@ data("phenotype_methods_timeline")
 ggtimeline(
   phenotype_methods_timeline,
   aes(x = date, label = topic, colour = category, fill = category),
-  style = "classic"
+  style = "classic",
+  side = "auto",
+  date_breaks = "2 years",
+  date_labels = "%Y"
 ) +
   scale_timeline_colour() +
-  scale_timeline_fill()
+  scale_timeline_fill() +
+  labs(
+    title = "Phenotype-to-cell mapping methods (2020\u20132026)",
+    caption = "Data from phenotype-mapping-methods.md"
+  )
 ```
+
+<img src="man/figures/demo-phenotype-methods-classic.png" alt="Classic timeline of phenotype mapping methods coloured by category" width="100%" />
+
+### Ribbon style
+
+Alternate above/below labels with publication status encoded by shape:
+
+```r
+ggtimeline(
+  phenotype_methods_timeline,
+  aes(x = date, label = topic, fill = category, shape = status),
+  style = "ribbon",
+  side = "alternate"
+) +
+  scale_timeline_fill() +
+  scale_timeline_shape()
+```
+
+<img src="man/figures/demo-phenotype-methods-ribbon.png" alt="Ribbon timeline with alternate label placement" width="100%" />
+
+### Minimal style (high-impact methods)
+
+Subset to methods with ≥ 10 OpenAlex citations:
+
+```r
+high_impact <- subset(phenotype_methods_timeline, citations >= 10)
+
+ggtimeline(
+  high_impact,
+  aes(x = date, label = topic, colour = category),
+  style = "minimal"
+) +
+  scale_timeline_colour()
+```
+
+<img src="man/figures/demo-phenotype-methods-minimal.png" alt="Minimal timeline of high-citation methods" width="100%" />
 
 ## Input data
 
@@ -48,26 +108,6 @@ Provide a data frame with:
 | `"milestone"` | Boxed labels with endpoint markers |
 | `"minimal"` | Compact dotted connectors |
 
-```r
-# Project milestone style
-ggtimeline(
-  phenotype_methods_timeline,
-  aes(x = date, label = topic, fill = category),
-  style = "ribbon",
-  side = "alternate"
-) +
-  scale_timeline_fill()
-
-# Group by publication status using shape
-ggtimeline(
-  phenotype_methods_timeline,
-  aes(x = date, label = topic, colour = category, shape = status),
-  style = "classic"
-) +
-  scale_timeline_colour() +
-  scale_timeline_shape()
-```
-
 ## Customisation
 
 All plots return standard `ggplot` objects. Add layers, scales, and themes as usual:
@@ -83,7 +123,7 @@ ggtimeline(
   height_step = 0.6
 ) +
   scale_timeline_colour() +
-  labs(title = "Phenotype mapping methods (2020–2026)")
+  labs(title = "Phenotype mapping methods (2020\u20132026)")
 ```
 
 ### Lower-level geoms

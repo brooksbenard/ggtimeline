@@ -28,6 +28,7 @@ Imports:
 Suggests:
     covr,
     dplyr,
+    pkgload,
     rmarkdown,
     tinytest
 Roxygen: list(markdown = TRUE)

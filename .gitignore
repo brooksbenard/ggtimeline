@@ -8,5 +8,7 @@ doc
 Meta
 *.tar.gz
 *.pdf
-*.png
 ggtimeline.Rcheck/
+# ignore stray plots but keep README/demo figures
+*.png
+!man/figures/*.png
