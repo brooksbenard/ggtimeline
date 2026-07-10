@@ -9,14 +9,18 @@ library(ggplot2)
 library(ggtimeline)
 data("phenotype_methods_timeline")
 
-## Classic timeline coloured by method category
+## Classic timeline with year annotations and future-pointing axis arrow
 p <- ggtimeline(
   phenotype_methods_timeline,
   aes(x = date, label = topic, colour = category, fill = category),
   style = "classic",
   side = "auto",
-  date_breaks = "2 years",
-  date_labels = "%Y"
+  year_breaks = "2 years",
+  year_side = "alternate",
+  base_height = 1.1,
+  height_step = 0.7,
+  label_size = 3,
+  axis_arrow = TRUE
 ) +
   scale_timeline_colour() +
   scale_timeline_fill() +
@@ -32,7 +36,8 @@ p2 <- ggtimeline(
   phenotype_methods_timeline,
   aes(x = date, label = topic, fill = category, shape = status),
   style = "ribbon",
-  side = "alternate"
+  side = "alternate",
+  year_breaks = "2 years"
 ) +
   scale_timeline_fill() +
   scale_timeline_shape()

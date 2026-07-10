@@ -5,6 +5,11 @@
 #' @inheritParams ggplot2::layer
 #' @param size Axis line width.
 #' @param colour Axis line colour.
+#' @param arrow If `TRUE` (default), draw a closed arrowhead at the right end
+#'   of the axis pointing toward the future.
+#' @param start_cap If `TRUE` (default), draw a filled dot at the left origin.
+#' @param arrow_length Arrowhead length ([grid::unit()] or numeric passed to
+#'   [grid::arrow()]).
 #' @inheritParams ggplot2::layer
 #' @param ... Additional arguments passed to [ggplot2::layer()].
 #' @export
@@ -14,6 +19,9 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
                                position = "identity",
                                size = 0.8,
                                colour = "grey30",
+                               arrow = TRUE,
+                               start_cap = TRUE,
+                               arrow_length = grid::unit(0.25, "cm"),
                                show.legend = FALSE,
                                inherit.aes = TRUE,
                                ...) {
@@ -28,6 +36,9 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
     params = list(
       size = size,
       colour = colour,
+      arrow = arrow,
+      start_cap = start_cap,
+      arrow_length = arrow_length,
       ...
     )
   )
@@ -48,8 +59,11 @@ GeomTimelineAxis <- ggplot2::ggproto(
 
   draw_key = ggplot2::draw_key_blank,
 
+  extra_params = c("na.rm", "arrow", "start_cap", "arrow_length"),
+
   draw_panel = function(data, panel_params, coord, size = 0.8, colour = "grey30",
-                        linetype = 1, ...) {
+                        linetype = 1, arrow = TRUE, start_cap = TRUE,
+                        arrow_length = grid::unit(0.25, "cm"), ...) {
     if (nrow(data) == 0L) {
       return(grid::nullGrob())
     }
@@ -57,18 +71,50 @@ GeomTimelineAxis <- ggplot2::ggproto(
     data <- ggplot2::coord_munch(coord, data, panel_params)
     row <- data[1, , drop = FALSE]
     alpha_val <- if ("alpha" %in% names(row) && !is.na(row$alpha)) row$alpha else 1
+    line_col <- alpha(colour, alpha_val)
 
-    grid::segmentsGrob(
+    axis_arrow <- if (isTRUE(arrow)) {
+      grid::arrow(length = arrow_length, type = "closed")
+    } else {
+      NULL
+    }
+
+    line <- grid::segmentsGrob(
       x0 = row$xmin,
       y0 = row$y,
       x1 = row$xmax,
       y1 = row$y,
+      arrow = axis_arrow,
       gp = grid::gpar(
-        col = alpha(colour, alpha_val),
+        col = line_col,
         lwd = size * ggplot2::.pt,
-        lty = linetype
+        lty = linetype,
+        fill = line_col
       )
     )
+
+    grobs <- list(line)
+    if (isTRUE(start_cap)) {
+      cap_size <- size * 2.2
+      start_pt <- ggplot2::coord_munch(
+        coord,
+        data.frame(x = row$xmin, y = row$y),
+        panel_params
+      )
+      grobs <- c(
+        list(
+          grid::pointsGrob(
+            x = start_pt$x,
+            y = start_pt$y,
+            pch = 16,
+            gp = grid::gpar(col = line_col, fill = line_col, cex = cap_size / 3)
+          )
+        ),
+        grobs
+      )
+    }
+
+    do.call(grid::grobTree, grobs)
   }
 )
 

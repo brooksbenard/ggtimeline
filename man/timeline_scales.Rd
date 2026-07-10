@@ -19,7 +19,8 @@ timeline_group_guide(
 )
 }
 \arguments{
-\item{palette}{Character vector of colours for timeline categories.}
+\item{palette}{Character vector of colours for timeline categories.
+Defaults to \code{\link[=timeline_palette]{timeline_palette()}}.}
 
 \item{...}{Additional arguments passed to \code{\link[ggplot2:scale_manual]{ggplot2::scale_colour_manual()}}
 or \code{\link[ggplot2:scale_manual]{ggplot2::scale_fill_manual()}}.}

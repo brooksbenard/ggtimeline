@@ -3,16 +3,184 @@
 .timeline_defaults <- function() {
   list(
     axis_y = 0,
-    base_height = 0.8,
-    height_step = 0.55,
+    base_height = 1,
+    height_step = 0.6,
     label_width_days = 90,
     min_gap_days = 14,
     elbow_fraction = 0.35,
-    point_size = 3,
-    endpoint_size = 4.5,
+    point_size = 3.2,
+    endpoint_size = 4.8,
     label_hjust = 0,
-    label_size = 3.5
+    label_size = 3.2,
+    year_offset = 0.32,
+    connector_colour = "#A8A8A8"
   )
+}
+
+#' Default timeline colour palette
+#'
+#' A refined, publication-ready palette for timeline categories and events.
+#'
+#' @param n Number of colours to return. If greater than the number of named
+#'   colours, additional colours are interpolated.
+#' @return A named or unnamed character vector of hex colours.
+#' @export
+timeline_palette <- function(n = NULL) {
+  base <- c(
+    "#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3",
+    "#937860", "#DA8BC3", "#8C8C8C", "#CCB974", "#64B5CD"
+  )
+  named <- c(
+    "bulk+sc" = "#4C72B0",
+    "sc cohort" = "#55A868",
+    "spatial+bulk" = "#C44E52",
+    "meta-framework" = "#8172B3",
+    "other" = "#DD8452",
+    "peer-reviewed" = "#4C72B0",
+    "preprint" = "#DD8452"
+  )
+  if (is.null(n)) {
+    return(named)
+  }
+  if (n <= length(base)) {
+    return(base[seq_len(n)])
+  }
+  grDevices::colorRampPalette(base)(n)
+}
+
+#' Compute year break positions for timeline annotation
+#'
+#' Generates a data frame of year labels suitable for [geom_timeline_year()].
+#'
+#' @param from,start Start date (Date, POSIXct, or numeric). `start` is an alias.
+#' @param to,end End date. `end` is an alias.
+#' @param breaks Year interval specification:
+#'   \itemize{
+#'     \item `"auto"` picks a sensible interval from the date span.
+#'     \item A character string like `"1 year"`, `"2 years"`, `"5 years"`.
+#'     \item A numeric vector of years (converted to mid-year dates).
+#'     \item A Date vector of explicit break positions.
+#'   }
+#' @param labels Character labels; defaults to formatted years.
+#' @param side Placement relative to the axis: `"alternate"` (default),
+#'   `"above"`, or `"below"`.
+#' @param axis_y Y position of the timeline axis.
+#' @param colours Optional character vector of colours cycling across years.
+#' @return A data frame with columns `x`, `label`, `y`, `.timeline_year_side`,
+#'   and optionally `colour`.
+#' @export
+#' @examples
+#' compute_year_breaks(
+#'   from = as.Date("2020-01-01"),
+#'   to = as.Date("2026-12-01"),
+#'   breaks = "2 years"
+#' )
+compute_year_breaks <- function(from, to,
+                                breaks = "auto",
+                                labels = NULL,
+                                side = c("alternate", "above", "below"),
+                                axis_y = 0,
+                                colours = NULL,
+                                start = NULL,
+                                end = NULL) {
+  if (!is.null(start)) from <- start
+  if (!is.null(end)) to <- end
+  side <- match.arg(side)
+  start <- .as_date_safe(from)
+  end <- .as_date_safe(to)
+
+  if (is.null(start) || is.null(end)) {
+    rlang::abort("`from` and `to` must be valid dates.")
+  }
+  if (start > end) {
+    tmp <- start
+    start <- end
+    end <- tmp
+  }
+
+  if (is.character(breaks) && length(breaks) == 1L) {
+    if (breaks == "auto") {
+      span_years <- as.numeric(difftime(end, start, units = "days")) / 365.25
+      step <- if (span_years <= 4) {
+        1L
+      } else if (span_years <= 12) {
+        2L
+      } else if (span_years <= 35) {
+        5L
+      } else {
+        10L
+      }
+      start_year <- as.integer(format(start, "%Y"))
+      end_year <- as.integer(format(end, "%Y"))
+      years <- seq(start_year, end_year, by = step)
+    } else {
+      by_match <- regmatches(breaks, regexpr("[0-9]+", breaks))
+      step <- if (length(by_match)) as.integer(by_match[1]) else 1L
+      start_year <- as.integer(format(start, "%Y"))
+      end_year <- as.integer(format(end, "%Y"))
+      years <- seq(start_year, end_year, by = step)
+    }
+    xs <- as.Date(paste0(years, "-07-01"))
+  } else if (inherits(breaks, "Date")) {
+    xs <- breaks
+    years <- as.integer(format(xs, "%Y"))
+  } else if (is.numeric(breaks)) {
+    years <- as.integer(breaks)
+    xs <- as.Date(paste0(years, "-07-01"))
+  } else {
+    rlang::abort("`breaks` must be 'auto', a date interval string, numeric years, or Date vector.")
+  }
+
+  xs <- xs[xs >= start & xs <= end]
+  if (length(xs) == 0L) {
+    return(data.frame(
+      x = as.Date(character()),
+      label = character(),
+      y = numeric(),
+      .timeline_year_side = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  if (is.null(labels)) {
+    labels <- format(xs, "%Y")
+  } else if (length(labels) != length(xs)) {
+    rlang::abort("`labels` must be the same length as computed breaks.")
+  }
+
+  sides <- switch(
+    side,
+    above = rep("above", length(xs)),
+    below = rep("below", length(xs)),
+    alternate = rep(c("above", "below"), length.out = length(xs))
+  )
+
+  out <- data.frame(
+    x = xs,
+    label = as.character(labels),
+    y = axis_y,
+    .timeline_year_side = sides,
+    stringsAsFactors = FALSE
+  )
+
+  if (!is.null(colours)) {
+    out$colour <- rep(colours, length.out = nrow(out))
+  }
+
+  out
+}
+
+.as_date_safe <- function(x) {
+  if (inherits(x, "Date")) {
+    return(x)
+  }
+  if (inherits(x, "POSIXt")) {
+    return(as.Date(x))
+  }
+  if (is.numeric(x) && length(x) == 1L) {
+    return(as.Date(x, origin = "1970-01-01"))
+  }
+  suppressWarnings(as.Date(x))
 }
 
 .date_to_numeric <- function(x) {
@@ -177,11 +345,37 @@
   data.frame(x = x1, y = y1, xend = x2, yend = y2)
 }
 
-.timeline_theme <- function(base_size = 12) {
+.timeline_theme <- function(base_size = 11, background = "#F5F4F0") {
   ggplot2::theme_void(base_size = base_size) +
     ggplot2::theme(
-      plot.margin = ggplot2::margin(20, 20, 20, 20),
-      legend.position = "bottom"
+      plot.background = ggplot2::element_rect(fill = background, colour = NA),
+      panel.background = ggplot2::element_rect(fill = background, colour = NA),
+      plot.margin = ggplot2::margin(28, 32, 28, 32),
+      plot.title = ggplot2::element_text(
+        face = "bold",
+        size = rel(1.45),
+        colour = "#2A2A2A",
+        hjust = 0.5,
+        margin = ggplot2::margin(b = 6)
+      ),
+      plot.subtitle = ggplot2::element_text(
+        colour = "#666666",
+        size = rel(1.05),
+        hjust = 0.5,
+        margin = ggplot2::margin(b = 18)
+      ),
+      plot.caption = ggplot2::element_text(
+        colour = "#999999",
+        size = rel(0.78),
+        hjust = 0.5,
+        margin = ggplot2::margin(t = 14)
+      ),
+      legend.position = "bottom",
+      legend.title = ggplot2::element_text(face = "bold", size = rel(0.92), colour = "#444444"),
+      legend.text = ggplot2::element_text(colour = "#555555", size = rel(0.88)),
+      legend.key.size = grid::unit(0.45, "cm"),
+      legend.spacing.x = grid::unit(0.25, "cm"),
+      text = ggplot2::element_text(family = "sans", colour = "#333333")
     )
 }
 
@@ -190,48 +384,60 @@
   switch(
     style,
     classic = list(
-      axis_size = 0.8,
-      axis_color = "grey30",
+      axis_size = 0.65,
+      axis_color = "#3D3D3D",
       point_shape = 21,
-      point_fill = NA,
-      point_stroke = 1.2,
+      point_fill = "white",
+      point_stroke = 1.4,
       connector_linetype = "solid",
+      connector_colour = "#B8B8B8",
       label_box = FALSE,
       endpoint = TRUE,
-      show_axis_ends = TRUE
+      show_axis_ends = TRUE,
+      axis_arrow = TRUE,
+      start_cap = TRUE
     ),
     ribbon = list(
-      axis_size = 4,
-      axis_color = "grey75",
+      axis_size = 3.5,
+      axis_color = "#D8D8D4",
       point_shape = NA,
       point_fill = NA,
       point_stroke = 0,
       connector_linetype = "solid",
+      connector_colour = "#C8C8C4",
       label_box = TRUE,
       endpoint = FALSE,
-      show_axis_ends = FALSE
+      show_axis_ends = FALSE,
+      axis_arrow = TRUE,
+      start_cap = FALSE
     ),
     minimal = list(
-      axis_size = 0.4,
-      axis_color = "grey50",
+      axis_size = 0.45,
+      axis_color = "#888888",
       point_shape = 16,
       point_fill = NA,
-      point_stroke = 0.8,
+      point_stroke = 0.9,
       connector_linetype = "dotted",
+      connector_colour = "#BBBBBB",
       label_box = FALSE,
       endpoint = FALSE,
-      show_axis_ends = FALSE
+      show_axis_ends = FALSE,
+      axis_arrow = TRUE,
+      start_cap = FALSE
     ),
     milestone = list(
-      axis_size = 1.2,
-      axis_color = "grey40",
+      axis_size = 1,
+      axis_color = "#4A4A4A",
       point_shape = 21,
       point_fill = "white",
       point_stroke = 1.5,
       connector_linetype = "solid",
+      connector_colour = "#AFAFAF",
       label_box = TRUE,
       endpoint = TRUE,
-      show_axis_ends = TRUE
+      show_axis_ends = TRUE,
+      axis_arrow = TRUE,
+      start_cap = TRUE
     )
   )
 }

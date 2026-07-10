@@ -12,14 +12,25 @@ ggtimeline(
   style = c("classic", "ribbon", "minimal", "milestone"),
   side = c("auto", "alternate", "above", "below"),
   elbowed = TRUE,
-  base_height = 0.8,
-  height_step = 0.55,
+  base_height = 1,
+  height_step = 0.6,
   label_width_days = 90,
+  label_size = 3.2,
   min_gap_days = 14,
   axis_y = 0,
+  axis_arrow = TRUE,
+  start_cap = NULL,
+  connector_colour = NULL,
+  year_breaks = NULL,
+  year_labels = NULL,
+  year_side = c("alternate", "above", "below"),
+  year_size = 5.5,
+  year_colours = NULL,
+  year_offset = 0.32,
   date_breaks = ggplot2::waiver(),
   date_labels = "\%Y",
-  expand = 0.06
+  expand = 0.08,
+  background = "#F5F4F0"
 )
 }
 \arguments{
@@ -40,21 +51,54 @@ or \code{"below"}.}
 
 \item{elbowed}{If \code{TRUE} (default), use elbowed connectors.}
 
-\item{base_height}{Base distance from axis to first label tier.}
+\item{base_height}{Base distance from the axis to the first label tier.}
 
-\item{height_step}{Additional vertical offset per overlap tier.}
+\item{height_step}{Additional vertical offset per overlap tier on the same
+side. Increase to add more space between stacked labels.}
 
-\item{label_width_days}{Approximate label width for overlap detection.}
+\item{label_width_days}{Approximate horizontal label width for overlap
+detection.}
+
+\item{label_size}{Topic label text size.}
 
 \item{min_gap_days}{Minimum horizontal gap between labels on the same side.}
 
 \item{axis_y}{Y position of the timeline axis.}
 
-\item{date_breaks}{Date breaks passed to \code{\link[ggplot2:scale_date]{ggplot2::scale_x_date()}}.}
+\item{axis_arrow}{If \code{TRUE} (default), draw a closed arrowhead at the
+right end of the axis pointing toward the future.}
 
-\item{date_labels}{Date label format passed to \code{\link[ggplot2:scale_date]{ggplot2::scale_x_date()}}.}
+\item{start_cap}{If \code{TRUE} (default for classic/milestone), draw a filled
+dot at the left origin of the axis.}
+
+\item{connector_colour}{Colour for elbow connector lines. Defaults to a
+style-specific neutral grey.}
+
+\item{year_breaks}{Year annotations along the axis. \code{NULL} omits year labels.
+\code{"auto"} picks a sensible interval from the date span. A string like
+\code{"2 years"} or \code{"5 years"} sets a fixed interval. A numeric vector of
+years or Date vector sets explicit positions. See \code{\link[=compute_year_breaks]{compute_year_breaks()}}.}
+
+\item{year_labels}{Optional character labels for year breaks.}
+
+\item{year_side}{Placement of year labels: \code{"alternate"} (default), \code{"above"},
+or \code{"below"} the axis.}
+
+\item{year_size}{Year label text size.}
+
+\item{year_colours}{Optional character vector of colours cycling across
+year labels.}
+
+\item{year_offset}{Distance of year labels from the axis in y-units.}
+
+\item{date_breaks}{Date breaks for the (hidden) x scale; used mainly when
+\code{year_breaks = NULL}.}
+
+\item{date_labels}{Date label format for the x scale when \code{year_breaks = NULL}.}
 
 \item{expand}{Axis padding beyond first/last events (fraction of range).}
+
+\item{background}{Plot background colour.}
 }
 \value{
 A \code{\link[ggplot2:ggplot]{ggplot2::ggplot()}} object that can be further customised with
@@ -77,7 +121,10 @@ data("phenotype_methods_timeline")
 ggtimeline(
   phenotype_methods_timeline,
   aes(x = date, label = topic, colour = category, fill = category),
-  style = "classic"
+  style = "classic",
+  year_breaks = "2 years",
+  base_height = 1.1,
+  height_step = 0.7
 ) +
   scale_timeline_colour() +
   scale_timeline_fill()

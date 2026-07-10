@@ -73,3 +73,30 @@ expect_inherits(
   ),
   "ggplot"
 )
+
+# year breaks helper
+years <- compute_year_breaks(
+  from = as.Date("2020-01-01"),
+  to = as.Date("2026-12-01"),
+  breaks = "2 years"
+)
+expect_true(nrow(years) >= 3L)
+expect_true(all(c("x", "label", ".timeline_year_side") %in% names(years)))
+
+# year annotations on plot
+expect_inherits(
+  ggtimeline(
+    phenotype_methods_timeline,
+    aes(x = date, label = topic, colour = category),
+    style = "classic",
+    year_breaks = "2 years",
+    axis_arrow = TRUE,
+    base_height = 1.2,
+    height_step = 0.65
+  ),
+  "ggplot"
+)
+
+# palette
+expect_true(length(timeline_palette()) >= 5L)
+expect_equal(length(timeline_palette(3)), 3L)

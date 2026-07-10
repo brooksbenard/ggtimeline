@@ -28,7 +28,7 @@ source(system.file("examples", "phenotype-methods-timeline-demo.R", package = "g
 
 ### Classic style
 
-Methods coloured by data modality (`bulk+sc`, `sc cohort`, `spatial+bulk`, etc.):
+Methods coloured by data modality, with **year annotations** and a **future-pointing axis arrow**:
 
 ```r
 library(ggplot2)
@@ -41,8 +41,12 @@ ggtimeline(
   aes(x = date, label = topic, colour = category, fill = category),
   style = "classic",
   side = "auto",
-  date_breaks = "2 years",
-  date_labels = "%Y"
+  year_breaks = "2 years",      # "auto", "5 years", or c(2020, 2022, 2024)
+  year_side = "alternate",       # alternate above/below axis
+  base_height = 1.1,             # label distance from axis
+  height_step = 0.7,             # extra spacing per overlap tier
+  label_size = 3,
+  axis_arrow = TRUE              # arrow points toward the future
 ) +
   scale_timeline_colour() +
   scale_timeline_fill() +
@@ -138,13 +142,43 @@ ggplot(phenotype_methods_timeline, aes(x = date, label = topic, colour = categor
   geom_timeline_label(stat = "timeline")
 ```
 
-## Label placement
+## Label placement & spacing
 
 - **`side = "auto"`** — picks above or below to minimise overlap (default)
 - **`side = "alternate"`** — alternates above/below
 - **`side = "above"` / `"below"`** — force one side
-- **`height_step`** — increases vertical stagger when labels collide on the same side
+- **`base_height`** — distance from axis to the first label tier
+- **`height_step`** — additional vertical offset when labels overlap on the same side
+- **`label_size`** — topic label text size
 - **`elbowed = TRUE`** — horizontal-then-vertical connector elbows
+
+## Year annotations
+
+Add large year labels along the axis with variable intervals:
+
+```r
+# Automatic interval based on date span
+ggtimeline(..., year_breaks = "auto")
+
+# Fixed interval
+ggtimeline(..., year_breaks = "2 years", year_side = "alternate")
+
+# Explicit years
+ggtimeline(..., year_breaks = c(2020, 2022, 2024, 2026))
+
+# Lower-level helper
+compute_year_breaks(
+  from = as.Date("2020-01-01"),
+  to = as.Date("2026-12-01"),
+  breaks = "2 years"
+)
+```
+
+Use `year_size`, `year_offset`, and `year_colours` to fine-tune year label appearance.
+
+## Axis arrow
+
+The timeline axis ends with a closed arrowhead pointing right (toward the future) by default. Disable with `axis_arrow = FALSE`. A filled origin dot is drawn at the left end in classic/milestone styles (`start_cap = TRUE`).
 
 ## License
 

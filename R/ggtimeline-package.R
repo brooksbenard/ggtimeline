@@ -14,4 +14,5 @@
 #'   eval_bare is_missing
 #' @importFrom scales rescale
 #' @importFrom scales alpha
+#' @importFrom grid arrow
 "_PACKAGE"

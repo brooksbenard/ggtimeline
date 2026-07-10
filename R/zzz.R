@@ -3,6 +3,7 @@ utils::globalVariables(c(
   ".timeline_elbow_x",
   ".timeline_label_y",
   ".timeline_side",
+  ".timeline_year_side",
   "xmin",
   "xmax",
   "y"
