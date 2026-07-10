@@ -1,0 +1,34 @@
+Package: ggtimeline
+Type: Package
+Title: Flexible Timeline Visualisations for ggplot2
+Version: 0.1.0
+Date: 2026-07-09
+Authors@R: c(
+    person("Brooks", "Benard",
+           email = "brooksbenard10@gmail.com",
+           role  = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-7154-744X"))
+  )
+Description: Create publication-ready timeline charts with 'ggplot2'.
+    Supports multiple visual styles, elbowed connectors, automatic
+    above/below label placement with staggered heights to reduce overlap,
+    and full aesthetic mapping including grouping by shared colours and
+    shapes.
+URL: https://github.com/brooksbenard/ggtimeline
+BugReports: https://github.com/brooksbenard/ggtimeline/issues
+Encoding: UTF-8
+License: MIT + file LICENSE
+Depends:
+    R (>= 4.0.0)
+Imports:
+    ggplot2 (>= 3.5.0),
+    grid,
+    rlang,
+    scales
+Suggests:
+    covr,
+    dplyr,
+    rmarkdown,
+    tinytest
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3

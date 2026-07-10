@@ -1,0 +1,12 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+.DS_Store
+doc
+Meta
+*.tar.gz
+*.pdf
+*.png
+ggtimeline.Rcheck/
