@@ -119,7 +119,7 @@ GeomTimelineConnector <- ggplot2::ggproto(
 
 #' Timeline endpoint marker geom
 #'
-#' Draws ring-style endpoint markers at label positions (classic style).
+#' Draws ring-style endpoint markers at label positions.
 #'
 #' @inheritParams ggplot2::layer
 #' @inheritParams ggplot2::layer

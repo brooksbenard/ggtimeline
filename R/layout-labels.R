@@ -13,14 +13,89 @@
   FALSE
 }
 
-.estimate_label_width_days <- function(labels, config, label_size = 3.2) {
+.measure_label_width_inches <- function(labels, label_size = 3.2) {
+  labels <- as.character(labels)
+  if (!requireNamespace("grid", quietly = TRUE)) {
+    return(rep(NA_real_, length(labels)))
+  }
+
+  # stringWidth needs an open device; use a null PDF when none is active.
+  opened <- FALSE
+  if (is.null(grDevices::dev.list())) {
+    grDevices::pdf(NULL)
+    opened <- TRUE
+  }
+  on.exit({
+    if (opened) {
+      grDevices::dev.off()
+    }
+  }, add = TRUE)
+
+  vapply(labels, function(lab) {
+    grob <- grid::textGrob(
+      lab,
+      gp = grid::gpar(
+        fontsize = label_size * ggplot2::.pt,
+        fontface = "bold",
+        fontfamily = "sans"
+      )
+    )
+    as.numeric(grid::convertWidth(grid::grobWidth(grob), "inches", valueOnly = TRUE))
+  }, numeric(1), USE.NAMES = FALSE)
+}
+
+.estimate_label_width_days <- function(labels, config, label_size = 3.2,
+                                       date_span = NULL) {
   size_factor <- label_size / 3.2
-  char_days <- config$label_width_days / 90 * size_factor
-  pmax(nchar(labels) * char_days * 5.5, config$min_gap_days * 1.5)
+  labels <- as.character(labels)
+  # `label_width_days` is the reserved width for a ~12-character label at the
+  # default size. Scale by glyph count and font size.
+  base_per_char <- (config$label_width_days / 12) * size_factor
+
+  if (!is.null(date_span) && is.finite(date_span) && date_span >= 30) {
+    # Convert inches into date units using the plot span.
+    # Assumes ~14" usable panel width after margins on landscape figures.
+    days_per_inch <- (date_span * 1.25) / 14
+    inches <- .measure_label_width_inches(labels, label_size)
+    if (all(is.finite(inches))) {
+      # Include room for the endpoint marker (~0.14") ahead of left-aligned text,
+      # plus padding so bold glyphs clear neighbors.
+      lead <- 0.14 * days_per_inch
+      return(pmax(lead + inches * days_per_inch * 1.3, config$min_gap_days * 2.5))
+    }
+    span_per_char <- 0.085 * days_per_inch * size_factor
+    char_days <- pmax(base_per_char, span_per_char)
+  } else {
+    # Fixed-day fallback: inflate so AABB checks match bold GeomText.
+    char_days <- base_per_char * 1.5
+  }
+
+  pmax(nchar(labels) * char_days * 1.25, config$min_gap_days * 2.5)
+}
+
+.estimate_year_label_half_days <- function(labels, year_size = 4.8,
+                                           date_span = 2000) {
+  labels <- as.character(labels)
+  if (length(labels) == 0L) {
+    return(35)
+  }
+  if (!is.finite(date_span) || date_span < 30) {
+    date_span <- 2000
+  }
+  days_per_inch <- (date_span * 1.2) / 14
+  inches <- .measure_label_width_inches(labels, year_size)
+  if (all(is.finite(inches))) {
+    half <- max(inches, na.rm = TRUE) * days_per_inch * 0.55
+  } else {
+    half <- max(nchar(labels), na.rm = TRUE) * year_size * 0.012 * days_per_inch
+  }
+  max(half, 30)
 }
 
 .estimate_label_height <- function(config, label_size = 3.2, boxed = FALSE) {
-  base <- config$height_step * 0.82
+  # Keep boxes just under one height_step so vertical stacking at the same x
+  # remains valid, while still clearing glyph ascenders/descenders.
+  base <- config$height_step * 0.92
   if (isTRUE(boxed)) {
     base <- base * 1.15
   }
@@ -48,29 +123,45 @@
   cluster
 }
 
-.shift_sequence <- function(width, min_gap, n = 11L) {
-  base <- max(width * 0.55, min_gap)
+.shift_sequence <- function(width, min_gap, n = 11L, max_shift = Inf) {
+  base <- max(width * 0.4, min_gap)
   offsets <- c(0)
   step <- 1L
   while (length(offsets) < n) {
-    offsets <- c(offsets, step * base, -step * base)
+    cand <- c(step * base, -step * base)
+    cand <- cand[abs(cand) <= max_shift + 1e-9]
+    if (length(cand) == 0L) {
+      break
+    }
+    offsets <- c(offsets, cand)
     step <- step + 1L
   }
-  offsets[seq_len(n)]
+  offsets[seq_len(min(n, length(offsets)))]
 }
 
 .place_side_labels <- function(dates, labels, idx, side_name, config,
-                              label_size, boxed, cluster_ids) {
+                              label_size, boxed, cluster_ids,
+                              date_span = NULL) {
   n <- length(idx)
   if (n == 0L) {
     return(list())
   }
 
   sign <- if (side_name == "above") 1 else -1
-  widths <- .estimate_label_width_days(labels[idx], config, label_size)
+  # Widths are aligned to `idx` order (unsorted). Index with match(i, idx).
+  widths <- .estimate_label_width_days(
+    labels[idx], config, label_size, date_span = date_span
+  )
   height <- .estimate_label_height(config, label_size, boxed)
-  pad_x <- config$min_gap_days * 0.35
-  pad_y <- config$height_step * 0.08
+  pad_x <- config$min_gap_days * 0.65
+  pad_y <- config$height_step * 0.1
+
+  # Keep elbow connectors local: prefer vertical tiers over multi-year shifts.
+  span_cap <- if (!is.null(date_span) && is.finite(date_span)) {
+    date_span * 0.2
+  } else {
+    Inf
+  }
 
   ord <- idx[order(dates[idx])]
   boxes <- list()
@@ -78,16 +169,20 @@
 
   for (j in seq_along(ord)) {
     i <- ord[j]
-    w <- widths[j]
+    w <- widths[match(i, idx)]
     placed <- FALSE
     tier <- 1L
-    max_tier <- 25L
+    max_tier <- 30L
 
-    shifts <- .shift_sequence(w, config$min_gap_days, n = 15L)
-    is_cluster <- cluster_ids[i] > 0 && sum(cluster_ids[idx] == cluster_ids[i]) > 1L
-    if (is_cluster) {
-      shifts <- .shift_sequence(w * 1.1, config$min_gap_days * 1.2, n = 21L)
-    }
+    cluster_size <- sum(cluster_ids[idx] == cluster_ids[i])
+    is_cluster <- cluster_ids[i] > 0 && cluster_size > 1L
+    max_shift <- min(max(w * 1.1, config$min_gap_days * 4), span_cap)
+    shifts <- .shift_sequence(
+      w,
+      config$min_gap_days,
+      n = if (is_cluster) 15L else 13L,
+      max_shift = max_shift
+    )
 
     while (!placed && tier <= max_tier) {
       base_y <- sign * (config$base_height + (tier - 1L) * config$height_step)
@@ -121,8 +216,16 @@
     }
 
     if (!placed) {
-      tx <- dates[i] + shifts[length(shifts)]
+      # Fail-open, but still register the box so later labels avoid it.
+      tx <- dates[i] + shifts[min(3L, length(shifts))]
       base_y <- sign * (config$base_height + (max_tier - 1L) * config$height_step)
+      if (sign > 0) {
+        ymin <- base_y
+        ymax <- base_y + height
+      } else {
+        ymin <- base_y - height
+        ymax <- base_y
+      }
       results[[j]] <- list(
         i = i,
         label_x = tx,
@@ -130,6 +233,7 @@
         tier = max_tier,
         width = w
       )
+      boxes[[length(boxes) + 1L]] <- list(tx, tx + w, ymin, ymax)
     }
   }
 
@@ -138,7 +242,14 @@
 
 .resolve_side_conflicts <- function(dates, labels, sides, config, label_size, boxed) {
   n <- length(dates)
-  cluster_ids <- .detect_clusters(dates, threshold_days = max(config$min_gap_days * 3, 45))
+  date_span <- config$plot_span %||% diff(range(dates, na.rm = TRUE))
+  if (!is.finite(date_span) || date_span <= 0) {
+    date_span <- NULL
+  }
+  cluster_ids <- .detect_clusters(
+    dates,
+    threshold_days = max(config$min_gap_days * 3, 45)
+  )
 
   label_x <- dates
   label_y <- rep(0, n)
@@ -157,7 +268,8 @@
       config = config,
       label_size = label_size,
       boxed = boxed,
-      cluster_ids = cluster_ids
+      cluster_ids = cluster_ids,
+      date_span = date_span
     )
     for (item in placed) {
       if (is.null(item)) {
@@ -180,6 +292,8 @@
 
 .apply_ggrepel_nudge <- function(dates, label_y, sides, labels, config,
                                 label_size, boxed) {
+  # Optional soft-repulsion pass. Uses ggrepel only as an installed-package
+  # gate; the nudge itself is a lightweight pairwise push in normalized space.
   if (!requireNamespace("ggrepel", quietly = TRUE)) {
     return(list(x = dates, y = label_y))
   }
@@ -190,7 +304,9 @@
   }
 
   span <- max(diff(range(dates)), 1)
-  width_frac <- .estimate_label_width_days(labels, config, label_size) / span
+  width_frac <- .estimate_label_width_days(
+    labels, config, label_size, date_span = span
+  ) / span
   height_frac <- rep(.estimate_label_height(config, label_size, boxed), n)
 
   x_norm <- (dates - min(dates)) / span
@@ -254,14 +370,33 @@
   label_method <- match.arg(label_method)
   dates <- .date_to_numeric(data[[date_col]])
   labels <- as.character(data[[topic_col]])
+  config$label_size <- label_size
+  config$boxed <- isTRUE(boxed)
   sides <- .compute_sides(dates, sides = side, labels = labels, config = config)
 
   if (label_method == "simple") {
-    tiers <- .compute_label_heights(dates, sides, labels, config)
+    # Boxed labels are drawn centered on the connector tip.
+    sides <- .balance_side_heights(
+      dates = dates,
+      labels = labels,
+      sides = sides,
+      config = config,
+      centered = isTRUE(boxed)
+    )
+    tiers <- .compute_label_heights(
+      dates, sides, labels, config, centered = isTRUE(boxed)
+    )
     sign <- ifelse(sides == "above", 1, -1)
     label_y <- sign * (config$base_height + (tiers - 1L) * config$height_step)
     label_x <- dates
   } else {
+    sides <- .balance_side_heights(
+      dates = dates,
+      labels = labels,
+      sides = sides,
+      config = config,
+      centered = isTRUE(boxed)
+    )
     resolved <- .resolve_side_conflicts(
       dates = dates,
       labels = labels,
@@ -300,6 +435,12 @@
     }
   }
 
+  # Offset text to the right of endpoint markers while keeping connectors on the
+  # marker position. Gap is ~0.14" converted via plot span.
+  span_for_gap <- config$plot_span %||% max(diff(range(dates, na.rm = TRUE)), 365)
+  text_gap <- (span_for_gap * 1.25 / 14) * 0.14
+  text_x <- label_x + text_gap
+
   out <- data.frame(
     .timeline_x = dates,
     .timeline_y = axis_y,
@@ -307,6 +448,7 @@
     .timeline_side = sides,
     .timeline_tier = tiers,
     .timeline_label_x = to_x(label_x),
+    .timeline_text_x = to_x(text_x),
     .timeline_label_y = label_y,
     .timeline_anchor_x = to_x(dates),
     stringsAsFactors = FALSE

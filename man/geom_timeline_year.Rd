@@ -76,7 +76,8 @@ to use \code{position_jitter()}, give the position as \code{"jitter"}.
 
 \item{colour}{Year label colour (overridden by mapped \code{colour} aesthetic).}
 
-\item{offset}{Distance from the axis line in y-units.}
+\item{offset}{Distance from the axis line in y-units. Ignored when
+\code{.timeline_year_side} is \code{"inside"}.}
 
 \item{fontface}{Font face for year labels.}
 
@@ -96,8 +97,8 @@ the default plot specification, e.g. \code{\link[ggplot2:annotation_borders]{ann
 \item{...}{Additional arguments passed to \code{\link[ggplot2:layer]{ggplot2::layer()}}.}
 }
 \description{
-Draws large year labels along the timeline axis, typically alternating
-above and below. Use via \code{\link[=ggtimeline]{ggtimeline()}} or add directly after computing
-break positions with \code{\link[=compute_year_breaks]{compute_year_breaks()}}.
+Draws year labels along the timeline axis. Placement can alternate above
+and below, sit on one side, or sit \strong{inside} a thick bar arrow
+(see \code{\link[=geom_timeline_axis]{geom_timeline_axis()}}).
 }
 \keyword{datasets}

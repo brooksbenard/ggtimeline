@@ -9,7 +9,7 @@ compute_year_breaks(
   to,
   breaks = "auto",
   labels = NULL,
-  side = c("alternate", "above", "below"),
+  side = c("alternate", "above", "below", "inside"),
   axis_y = 0,
   colours = NULL,
   start = NULL,
@@ -32,7 +32,7 @@ compute_year_breaks(
 \item{labels}{Character labels; defaults to formatted years.}
 
 \item{side}{Placement relative to the axis: \code{"alternate"} (default),
-\code{"above"}, or \code{"below"}.}
+\code{"above"}, \code{"below"}, or \code{"inside"} (centered in a thick bar arrow).}
 
 \item{axis_y}{Y position of the timeline axis.}
 

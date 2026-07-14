@@ -1,6 +1,9 @@
 # ggtimeline
 
-Flexible timeline visualisations for [ggplot2](https://ggplot2.tidyverse.org/). Create publication-ready timelines with multiple visual styles, elbowed connectors, automatic above/below label placement, and staggered heights to reduce overlap.
+Publication-ready timeline charts for [ggplot2](https://ggplot2.tidyverse.org/).
+
+Build a thick arrow axis with boxed event labels, optional era bands, in-arrow
+year labels and ticks, and automatic above/below stacking when labels collide.
 
 ## Installation
 
@@ -9,26 +12,11 @@ Flexible timeline visualisations for [ggplot2](https://ggplot2.tidyverse.org/). 
 remotes::install_github("brooksbenard/ggtimeline")
 ```
 
-## Demo: phenotype mapping methods timeline
+## Quick start
 
-The bundled `phenotype_methods_timeline` dataset contains 40 computational methods from the [phenotype-mapping-methods](https://github.com/brooksbenard/scIMPEL/blob/main/docs/phenotype-mapping-methods.md) reference guide, with publication dates, method categories, and citation counts.
-
-Run the interactive demo:
-
-```r
-library(ggtimeline)
-demo(phenotype_methods_timeline)
-```
-
-Or run the full example script:
-
-```r
-source(system.file("examples", "phenotype-methods-timeline-demo.R", package = "ggtimeline"))
-```
-
-### Classic style
-
-Methods coloured by data modality, with **year annotations** and a **future-pointing axis arrow**:
+The bundled `phenotype_methods_timeline` dataset has 41 methods from the
+[phenotype-mapping-methods](https://github.com/brooksbenard/scIMPEL/blob/main/docs/phenotype-mapping-methods.md)
+guide (publication dates, categories, and OpenAlex citations).
 
 ```r
 library(ggplot2)
@@ -36,154 +24,67 @@ library(ggtimeline)
 
 data("phenotype_methods_timeline")
 
-ggtimeline(
-  phenotype_methods_timeline,
-  aes(x = date, label = topic, colour = category, fill = category),
-  style = "classic",
-  side = "auto",
-  year_breaks = "2 years",      # "auto", "5 years", or c(2020, 2022, 2024)
-  year_side = "alternate",       # alternate above/below axis
-  base_height = 1.2,             # label distance from axis
-  height_step = 0.8,             # extra spacing per overlap tier
-  min_gap_days = 24,             # horizontal gap between labels
-  label_method = "mark",         # anno_mark-style spreading (default: "auto")
-  label_size = 2.8,
-  axis_arrow = TRUE              # arrow points toward the future
-) +
-  scale_timeline_colour() +
-  scale_timeline_fill() +
-  labs(
-    title = "Phenotype-to-cell mapping methods (2020\u20132026)",
-    caption = "Data from phenotype-mapping-methods.md"
-  )
-```
+eras <- data.frame(
+  start = as.Date(c("2020-07-01", "2023-01-01", "2025-01-01")),
+  end   = as.Date(c("2022-12-31", "2024-12-31", "2026-12-31")),
+  label = c("Emergence", "Expansion", "Acceleration"),
+  fill  = c("#4C72B0", "#55A868", "#C44E52")
+)
 
-<img src="man/figures/demo-phenotype-methods-classic.png" alt="Classic timeline of phenotype mapping methods coloured by category" width="100%" />
-
-### Ribbon style
-
-Alternate above/below labels with publication status encoded by shape:
-
-```r
 ggtimeline(
   phenotype_methods_timeline,
   aes(x = date, label = topic, fill = category, shape = status),
-  style = "ribbon",
-  side = "alternate"
+  year_breaks = "1 year",
+  year_side = "inside",
+  year_lines = 1,
+  eras = eras,
+  show_points = TRUE,
+  base_height = 1.35,
+  height_step = 1.0,
+  label_size = 4.2
 ) +
-  scale_timeline_fill() +
-  scale_timeline_shape()
+  scale_timeline_fill(name = "Method category") +
+  scale_timeline_shape(name = "Publication status")
 ```
 
-<img src="man/figures/demo-phenotype-methods-ribbon.png" alt="Ribbon timeline with alternate label placement" width="100%" />
+<img src="man/figures/demo-phenotype-methods.png" alt="Phenotype mapping methods timeline" width="100%" />
 
-### Minimal style (high-impact methods)
-
-Subset to methods with ≥ 10 OpenAlex citations:
+Interactive demo:
 
 ```r
-high_impact <- subset(phenotype_methods_timeline, citations >= 10)
-
-ggtimeline(
-  high_impact,
-  aes(x = date, label = topic, colour = category),
-  style = "minimal"
-) +
-  scale_timeline_colour()
+demo(phenotype_methods_timeline)
 ```
-
-<img src="man/figures/demo-phenotype-methods-minimal.png" alt="Minimal timeline of high-citation methods" width="100%" />
 
 ## Input data
 
-Provide a data frame with:
-
 | Column | Role |
 |--------|------|
-| `date` | Event date (controls horizontal spacing) |
-| `topic` | Label text (mapped via `aes(label = topic)`) |
-| Aesthetic columns | `colour`, `fill`, `shape`, `size`, etc. |
-| Grouping column | Shared aesthetics via `aes(group = category)` |
+| `date` | Event date (horizontal position) |
+| `topic` | Label text (`aes(label = …)`) |
+| Aesthetic columns | `colour`, `fill`, `shape`, `size`, … |
+| Grouping | Optional `aes(group = …)` for shared styling |
 
-## Timeline styles
+## Useful options
 
-| Style | Description |
-|-------|-------------|
-| `"classic"` | Axis markers with ring endpoints and elbowed connectors |
-| `"ribbon"` | Thick timeline bar with coloured label boxes |
-| `"milestone"` | Boxed labels with endpoint markers |
-| `"minimal"` | Compact dotted connectors |
+| Argument | Purpose |
+|----------|---------|
+| `eras` | Background era bands (`start`/`end`, optional `label`/`fill`/`alpha`) |
+| `year_breaks` | In-arrow year labels (`"1 year"`, `"auto"`, or explicit years) |
+| `year_lines` | In-arrow dashed year-boundary ticks (`TRUE`, `1`, `"2 years"`, …) |
+| `show_points` | Publication-status (or other) markers on the arrow edges |
+| `axis_width` / `axis_tip` | Arrow thickness and tip depth |
+| `connector_colour` / `connector_size` | Stem colour and width |
+| `side`, `base_height`, `height_step` | Label placement and stacking |
 
-## Customisation
+Year tick styling: `year_line_colour`, `year_line_width`, `year_line_alpha`.
 
-All plots return standard `ggplot` objects. Add layers, scales, and themes as usual:
+Plots are standard `ggplot` objects—add `labs()`, scales, and themes as usual.
 
 ```r
-ggtimeline(
-  phenotype_methods_timeline,
-  aes(x = date, label = topic, colour = category),
-  style = "minimal",
-  side = "auto",
-  elbowed = TRUE,
-  base_height = 1,
-  height_step = 0.6
-) +
-  scale_timeline_colour() +
+ggtimeline(..., year_breaks = "1 year", eras = eras) +
+  scale_timeline_fill() +
   labs(title = "Phenotype mapping methods (2020\u20132026)")
 ```
-
-### Lower-level geoms
-
-For full control, compose individual layers:
-
-```r
-ggplot(phenotype_methods_timeline, aes(x = date, label = topic, colour = category)) +
-  stat_timeline(side = "auto") +
-  geom_timeline_connector(stat = "timeline", elbowed = TRUE) +
-  geom_timeline_point(stat = "timeline") +
-  geom_timeline_label(stat = "timeline")
-```
-
-## Label placement & spacing
-
-Dense clusters use **anno_mark-style** spreading: labels shift horizontally and stack vertically to avoid overlap. A repulsion pass (`label_method = "repel"`) is applied automatically in tight clusters when **ggrepel** is installed.
-
-- **`label_method = "auto"`** — spreading + repulsion in dense regions (default)
-- **`label_method = "mark"`** — horizontal+vertical box placement (ComplexHeatmap-style)
-- **`side = "auto"`** — picks above or below to minimise overlap
-- **`base_height`** — distance from axis to the first label tier
-- **`height_step`** — additional vertical offset when labels overlap on the same side
-- **`min_gap_days`** — minimum horizontal gap between label boxes
-- **`label_size`** — topic label text size
-- **`elbowed = TRUE`** — horizontal-then-vertical connector elbows
-
-## Year annotations
-
-Add large year labels along the axis with variable intervals:
-
-```r
-# Automatic interval based on date span
-ggtimeline(..., year_breaks = "auto")
-
-# Fixed interval
-ggtimeline(..., year_breaks = "2 years", year_side = "alternate")
-
-# Explicit years
-ggtimeline(..., year_breaks = c(2020, 2022, 2024, 2026))
-
-# Lower-level helper
-compute_year_breaks(
-  from = as.Date("2020-01-01"),
-  to = as.Date("2026-12-01"),
-  breaks = "2 years"
-)
-```
-
-Use `year_size`, `year_offset`, and `year_colours` to fine-tune year label appearance.
-
-## Axis arrow
-
-The timeline axis ends with a closed arrowhead pointing right (toward the future) by default. Disable with `axis_arrow = FALSE`. A filled origin dot is drawn at the left end in classic/milestone styles (`start_cap = TRUE`).
 
 ## License
 

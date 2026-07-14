@@ -93,6 +93,6 @@ the default plot specification, e.g. \code{\link[ggplot2:annotation_borders]{ann
 \item{...}{Additional arguments passed to \code{\link[ggplot2:layer]{ggplot2::layer()}}.}
 }
 \description{
-Draws ring-style endpoint markers at label positions (classic style).
+Draws ring-style endpoint markers at label positions.
 }
 \keyword{datasets}

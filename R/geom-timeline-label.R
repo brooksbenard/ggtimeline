@@ -1,7 +1,7 @@
 #' Timeline label geom
 #'
 #' Draws topic labels at computed positions. Supports plain text or
-#' rounded label boxes (ribbon/milestone styles).
+#' rounded label boxes.
 #'
 #' @inheritParams ggplot2::layer
 #' @param boxed If `TRUE`, draw labels inside rounded rectangles.

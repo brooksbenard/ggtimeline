@@ -63,7 +63,7 @@ timeline_palette <- function(n = NULL) {
 #'   }
 #' @param labels Character labels; defaults to formatted years.
 #' @param side Placement relative to the axis: `"alternate"` (default),
-#'   `"above"`, or `"below"`.
+#'   `"above"`, `"below"`, or `"inside"` (centered in a thick bar arrow).
 #' @param axis_y Y position of the timeline axis.
 #' @param colours Optional character vector of colours cycling across years.
 #' @return A data frame with columns `x`, `label`, `y`, `.timeline_year_side`,
@@ -78,7 +78,7 @@ timeline_palette <- function(n = NULL) {
 compute_year_breaks <- function(from, to,
                                 breaks = "auto",
                                 labels = NULL,
-                                side = c("alternate", "above", "below"),
+                                side = c("alternate", "above", "below", "inside"),
                                 axis_y = 0,
                                 colours = NULL,
                                 start = NULL,
@@ -152,6 +152,7 @@ compute_year_breaks <- function(from, to,
     side,
     above = rep("above", length(xs)),
     below = rep("below", length(xs)),
+    inside = rep("inside", length(xs)),
     alternate = rep(c("above", "below"), length.out = length(xs))
   )
 
@@ -168,6 +169,66 @@ compute_year_breaks <- function(from, to,
   }
 
   out
+}
+
+#' Year-boundary positions for dashed timeline guides
+#'
+#' Returns January 1 dates at a fixed year interval for vertical year-change
+#' markers. Used by [ggtimeline()] when `year_lines` is enabled.
+#'
+#' @param from,to Axis date range.
+#' @param every Integer number of years between markers (default `1`).
+#' @return A Date vector of year starts strictly inside `(from, to)`.
+#' @export
+#' @examples
+#' compute_year_lines(
+#'   from = as.Date("2020-05-01"),
+#'   to = as.Date("2026-08-01"),
+#'   every = 2
+#' )
+compute_year_lines <- function(from, to, every = 1L) {
+  start <- .as_date_safe(from)
+  end <- .as_date_safe(to)
+  every <- as.integer(every)[1]
+  if (!is.finite(every) || every < 1L) {
+    every <- 1L
+  }
+  if (is.null(start) || is.null(end) || start >= end) {
+    return(as.Date(character()))
+  }
+
+  start_year <- as.integer(format(start, "%Y"))
+  end_year <- as.integer(format(end, "%Y")) + 1L
+  # Anchor so markers land on calendar years divisible relative to start_year.
+  years <- seq(start_year, end_year, by = every)
+  xs <- as.Date(paste0(years, "-01-01"))
+  xs[xs > start & xs < end]
+}
+
+.parse_year_line_every <- function(year_lines, year_breaks = NULL) {
+  if (is.null(year_lines) || isFALSE(year_lines)) {
+    return(NULL)
+  }
+  if (isTRUE(year_lines)) {
+    if (is.character(year_breaks) && length(year_breaks) == 1L &&
+          grepl("[0-9]+", year_breaks)) {
+      return(as.integer(regmatches(year_breaks, regexpr("[0-9]+", year_breaks))[1]))
+    }
+    return(1L)
+  }
+  if (is.numeric(year_lines) && length(year_lines) >= 1L) {
+    step <- as.integer(year_lines[1])
+    if (is.finite(step) && step >= 1L) {
+      return(step)
+    }
+  }
+  if (is.character(year_lines) && length(year_lines) == 1L) {
+    m <- regmatches(year_lines, regexpr("[0-9]+", year_lines))
+    if (length(m) && nzchar(m[1])) {
+      return(as.integer(m[1]))
+    }
+  }
+  1L
 }
 
 .as_date_safe <- function(x) {
@@ -193,8 +254,17 @@ compute_year_breaks <- function(from, to,
   }
 }
 
-.estimate_label_width <- function(labels, width_days, char_width = 6) {
-  nchar(labels) * char_width * (width_days / 90)
+.estimate_label_width <- function(labels, width_days, char_width = 6,
+                                  date_span = NULL, label_size = 3.2) {
+  # Prefer the shared span-aware estimator used by mark-style placement so
+  # side assignment and collision boxes agree on reserved label widths.
+  config <- list(label_width_days = width_days, min_gap_days = 14)
+  .estimate_label_width_days(
+    labels = labels,
+    config = config,
+    label_size = label_size,
+    date_span = date_span
+  )
 }
 
 .compute_sides <- function(dates, sides = c("auto", "above", "below", "alternate"),
@@ -221,49 +291,162 @@ compute_year_breaks <- function(from, to,
 
   ord <- order(dates)
   side <- rep(NA_character_, n)
-  above_end <- -Inf
-  below_end <- -Inf
-  width <- .estimate_label_width(labels, config$label_width_days)
+  # Tier end-dates per side so we can balance resulting vertical height.
+  above_ends <- numeric(0)
+  below_ends <- numeric(0)
+  date_span <- config$plot_span %||% diff(range(dates, na.rm = TRUE))
+  if (!is.finite(date_span) || date_span <= 0) {
+    date_span <- NULL
+  }
+  width <- .estimate_label_width(
+    labels,
+    config$label_width_days,
+    date_span = date_span,
+    label_size = config$label_size %||% 3.2
+  ) * 0.75
+  min_gap <- config$min_gap_days %||% 14
+  centered <- isTRUE(config$boxed)
+
+  place_cost <- function(ends, start, end) {
+    if (length(ends) == 0L) {
+      return(1L)
+    }
+    for (t in seq_along(ends)) {
+      if (start > ends[t] + min_gap) {
+        return(as.integer(t))
+      }
+    }
+    as.integer(length(ends) + 1L)
+  }
+
+  update_ends <- function(ends, start, end, tier) {
+    if (tier > length(ends)) {
+      ends <- c(ends, end)
+    } else {
+      ends[tier] <- end
+    }
+    ends
+  }
 
   for (i in ord) {
     w <- width[i]
-    start <- dates[i] - w / 2
-    end <- dates[i] + w / 2
-    above_overlap <- start <= above_end
-    below_overlap <- start <= below_end
-    if (!above_overlap && below_overlap) {
-      side[i] <- "above"
-      above_end <- end
-    } else if (above_overlap && !below_overlap) {
-      side[i] <- "below"
-      below_end <- end
-    } else if (!above_overlap && !below_overlap) {
-      if (above_end <= below_end) {
-        side[i] <- "above"
-        above_end <- end
-      } else {
-        side[i] <- "below"
-        below_end <- end
-      }
+    if (centered) {
+      start <- dates[i] - w / 2
+      end <- dates[i] + w / 2
     } else {
-      if (above_end <= below_end) {
-        side[i] <- "above"
-        above_end <- end
-      } else {
-        side[i] <- "below"
-        below_end <- end
-      }
+      start <- dates[i]
+      end <- dates[i] + w
+    }
+
+    cost_above <- place_cost(above_ends, start, end)
+    cost_below <- place_cost(below_ends, start, end)
+    height_above <- max(length(above_ends), cost_above)
+    height_below <- max(length(below_ends), cost_below)
+
+    # Prefer the side that keeps peak stack height lower; break remaining
+    # ties by lower placement tier, then by current occupancy.
+    if (height_above < height_below) {
+      chosen <- "above"
+    } else if (height_below < height_above) {
+      chosen <- "below"
+    } else if (cost_above < cost_below) {
+      chosen <- "above"
+    } else if (cost_below < cost_above) {
+      chosen <- "below"
+    } else if (length(above_ends) <= length(below_ends)) {
+      chosen <- "above"
+    } else {
+      chosen <- "below"
+    }
+
+    side[i] <- chosen
+    if (chosen == "above") {
+      above_ends <- update_ends(above_ends, start, end, cost_above)
+    } else {
+      below_ends <- update_ends(below_ends, start, end, cost_below)
     }
   }
   side
 }
 
-.compute_label_heights <- function(dates, sides, labels, config) {
+# Flip labels between sides to keep peak stack height balanced above/below.
+.balance_side_heights <- function(dates, labels, sides, config,
+                                  centered = FALSE, max_iter = 60L) {
+  if (length(dates) < 2L) {
+    return(sides)
+  }
+
+  score <- function(s) {
+    tiers <- .compute_label_heights(
+      dates, s, labels, config, centered = centered
+    )
+    h_above <- max(c(0L, tiers[s == "above"]), na.rm = TRUE)
+    h_below <- max(c(0L, tiers[s == "below"]), na.rm = TRUE)
+    list(
+      tiers = tiers,
+      h_above = as.integer(h_above),
+      h_below = as.integer(h_below),
+      imbalance = abs(as.integer(h_above) - as.integer(h_below)),
+      peak = max(as.integer(h_above), as.integer(h_below))
+    )
+  }
+
+  cur <- score(sides)
+  if (cur$imbalance <= 1L) {
+    return(sides)
+  }
+
+  for (iter in seq_len(max_iter)) {
+    tall <- if (cur$h_above >= cur$h_below) "above" else "below"
+    short <- if (identical(tall, "above")) "below" else "above"
+    tall_idx <- which(sides == tall)
+    if (length(tall_idx) == 0L) {
+      break
+    }
+    # Try flipping from highest tiers first.
+    tall_idx <- tall_idx[order(cur$tiers[tall_idx], decreasing = TRUE)]
+
+    improved <- FALSE
+    for (i in tall_idx) {
+      trial <- sides
+      trial[i] <- short
+      nxt <- score(trial)
+      better <- nxt$peak < cur$peak ||
+        (nxt$peak == cur$peak && nxt$imbalance < cur$imbalance)
+      if (better) {
+        sides <- trial
+        cur <- nxt
+        improved <- TRUE
+        break
+      }
+    }
+    if (!improved || cur$imbalance <= 1L) {
+      break
+    }
+  }
+  sides
+}
+
+.compute_label_heights <- function(dates, sides, labels, config,
+                                   centered = FALSE) {
   n <- length(dates)
   if (n == 0L) {
     return(numeric())
   }
-  width <- .estimate_label_width(labels, config$label_width_days)
+  date_span <- config$plot_span %||% diff(range(dates, na.rm = TRUE))
+  if (!is.finite(date_span) || date_span <= 0) {
+    date_span <- NULL
+  }
+  width <- .estimate_label_width(
+    labels,
+    config$label_width_days,
+    date_span = date_span,
+    label_size = config$label_size %||% 3.2
+  )
+  # Boxed labels are centered on the connector; reserve padding for the box.
+  if (isTRUE(centered)) {
+    width <- width * 1.2
+  }
   tier <- integer(n)
   ord <- order(dates)
 
@@ -274,8 +457,13 @@ compute_year_breaks <- function(from, to,
     }
     ends <- rep(-Inf, 0L)
     for (i in idx) {
-      start <- dates[i] - width[i] / 2
-      end <- dates[i] + width[i] / 2
+      if (isTRUE(centered)) {
+        start <- dates[i] - width[i] / 2
+        end <- dates[i] + width[i] / 2
+      } else {
+        start <- dates[i]
+        end <- dates[i] + width[i]
+      }
       placed <- FALSE
       for (t in seq_along(ends)) {
         if (start > ends[t] + config$min_gap_days) {
@@ -343,66 +531,30 @@ compute_year_breaks <- function(from, to,
     )
 }
 
-.timeline_style_params <- function(style) {
-  style <- match.arg(style, c("classic", "ribbon", "minimal", "milestone"))
-  switch(
-    style,
-    classic = list(
-      axis_size = 0.65,
-      axis_color = "#3D3D3D",
-      point_shape = 21,
-      point_fill = "white",
-      point_stroke = 1.4,
-      connector_linetype = "solid",
-      connector_colour = "#B8B8B8",
-      label_box = FALSE,
-      endpoint = TRUE,
-      show_axis_ends = TRUE,
-      axis_arrow = TRUE,
-      start_cap = TRUE
-    ),
-    ribbon = list(
-      axis_size = 3.5,
-      axis_color = "#D8D8D4",
-      point_shape = NA,
-      point_fill = NA,
-      point_stroke = 0,
-      connector_linetype = "solid",
-      connector_colour = "#C8C8C4",
-      label_box = TRUE,
-      endpoint = FALSE,
-      show_axis_ends = FALSE,
-      axis_arrow = TRUE,
-      start_cap = FALSE
-    ),
-    minimal = list(
-      axis_size = 0.45,
-      axis_color = "#888888",
-      point_shape = 16,
-      point_fill = NA,
-      point_stroke = 0.9,
-      connector_linetype = "dotted",
-      connector_colour = "#BBBBBB",
-      label_box = FALSE,
-      endpoint = FALSE,
-      show_axis_ends = FALSE,
-      axis_arrow = TRUE,
-      start_cap = FALSE
-    ),
-    milestone = list(
-      axis_size = 1,
-      axis_color = "#4A4A4A",
-      point_shape = 21,
-      point_fill = "white",
-      point_stroke = 1.5,
-      connector_linetype = "solid",
-      connector_colour = "#AFAFAF",
-      label_box = TRUE,
-      endpoint = TRUE,
-      show_axis_ends = TRUE,
-      axis_arrow = TRUE,
-      start_cap = TRUE
-    )
+.timeline_style_params <- function(style = "ribbon") {
+  style <- match.arg(style, "ribbon")
+  # Additional styles will be added here as new visualisation types land.
+  list(
+    axis_size = 1.1,
+    axis_color = "#6B6B66",
+    axis_fill = "#F4F4F0",
+    axis_shape = "bar",
+    axis_height = 0.5,
+    axis_tip = 0.015,
+    point_shape = NA,
+    point_fill = NA,
+    point_stroke = 0,
+    connector_linetype = "solid",
+    connector_colour = "#A8A8A4",
+    label_box = TRUE,
+    endpoint = FALSE,
+    show_axis_ends = FALSE,
+    axis_arrow = TRUE,
+    start_cap = FALSE,
+    year_side_default = "inside",
+    year_colour_default = "#555555",
+    elbowed_default = FALSE,
+    label_method_default = "simple"
   )
 }
 

@@ -1,13 +1,14 @@
 #' Timeline year annotation geom
 #'
-#' Draws large year labels along the timeline axis, typically alternating
-#' above and below. Use via [ggtimeline()] or add directly after computing
-#' break positions with [compute_year_breaks()].
+#' Draws year labels along the timeline axis. Placement can alternate above
+#' and below, sit on one side, or sit **inside** a thick bar arrow
+#' (see [geom_timeline_axis()]).
 #'
 #' @inheritParams ggplot2::layer
 #' @param size Year label text size.
 #' @param colour Year label colour (overridden by mapped `colour` aesthetic).
-#' @param offset Distance from the axis line in y-units.
+#' @param offset Distance from the axis line in y-units. Ignored when
+#'   `.timeline_year_side` is `"inside"`.
 #' @param fontface Font face for year labels.
 #' @param ... Additional arguments passed to [ggplot2::layer()].
 #' @export
@@ -71,14 +72,19 @@ GeomTimelineYear <- ggplot2::ggproto(
     grobs <- vector("list", nrow(data))
     for (i in seq_len(nrow(data))) {
       row <- data[i, , drop = FALSE]
-      sign <- if (row$.timeline_year_side == "above") 1 else -1
-      label_y <- row$y + sign * offset
+      side <- as.character(row$.timeline_year_side)
+      label_y <- if (identical(side, "inside")) {
+        row$y
+      } else {
+        sign <- if (identical(side, "above")) 1 else -1
+        row$y + sign * offset
+      }
       pt <- ggplot2::coord_munch(
         coord,
         data.frame(x = row$x, y = label_y),
         panel_params
       )
-      text_colour <- row$colour %||% colour
+      text_colour <- row$.timeline_year_colour %||% row$colour %||% colour
       grobs[[i]] <- grid::textGrob(
         label = as.character(row$label),
         x = pt$x,

@@ -16,6 +16,10 @@ geom_timeline_axis(
   position = "identity",
   size = 0.8,
   colour = "grey30",
+  fill = "white",
+  shape = c("bar", "line"),
+  height = 0.42,
+  tip_frac = 0.015,
   arrow = TRUE,
   start_cap = TRUE,
   arrow_length = grid::unit(0.25, "cm"),
@@ -73,17 +77,28 @@ to use \code{position_jitter()}, give the position as \code{"jitter"}.
 \link[ggplot2:layer_positions]{layer position} documentation.
 }}
 
-\item{size}{Axis line width.}
+\item{size}{Outline width for the bar axis, or line width for \code{"line"}.}
 
-\item{colour}{Axis line colour.}
+\item{colour}{Axis colour.}
 
-\item{arrow}{If \code{TRUE} (default), draw a closed arrowhead at the right end
-of the axis pointing toward the future.}
+\item{fill}{Interior fill for the bar axis. Defaults to white.}
 
-\item{start_cap}{If \code{TRUE} (default), draw a filled dot at the left origin.}
+\item{shape}{Axis shape: \code{"bar"} (thick arrow body with a normal tip) or
+\code{"line"} (thin horizontal line).}
 
-\item{arrow_length}{Arrowhead length (\code{\link[grid:unit]{grid::unit()}} or numeric passed to
-\code{\link[grid:arrow]{grid::arrow()}}).}
+\item{height}{Half-height (vertical thickness) of the bar ribbon in y-units.
+Ignored for \code{"line"}.}
+
+\item{tip_frac}{Fraction of the axis length used for the right arrow tip.
+Smaller values yield a shorter, less stretched head. Default \code{0.015}.}
+
+\item{arrow}{If \code{TRUE} and \code{shape = "line"}, draw a closed arrowhead at the
+right end. For \code{"bar"}, the tip is always drawn as part of the polygon.}
+
+\item{start_cap}{If \code{TRUE} and \code{shape = "line"}, draw a filled dot at the
+left origin.}
+
+\item{arrow_length}{Arrowhead length for \code{"line"} shape.}
 
 \item{show.legend}{logical. Should this layer be included in the legends?
 \code{NA}, the default, includes if any aesthetics are mapped.
@@ -101,6 +116,7 @@ the default plot specification, e.g. \code{\link[ggplot2:annotation_borders]{ann
 \item{...}{Additional arguments passed to \code{\link[ggplot2:layer]{ggplot2::layer()}}.}
 }
 \description{
-Draws the horizontal timeline axis. Typically added via \code{\link[=ggtimeline]{ggtimeline()}}.
+Draws the horizontal timeline axis as a thick bar arrow (years can sit
+inside via \code{\link[=geom_timeline_year]{geom_timeline_year()}} with \code{side = "inside"}) or as a thin line.
 }
 \keyword{datasets}

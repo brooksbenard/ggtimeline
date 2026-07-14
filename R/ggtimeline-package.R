@@ -1,10 +1,9 @@
-#' ggtimeline: Flexible timeline visualisations for ggplot2
+#' ggtimeline: Timeline charts for ggplot2
 #'
-#' Create publication-ready timeline charts with multiple visual styles,
-#' elbowed connectors, and automatic label placement.
+#' Create publication-ready timeline charts with a thick arrow axis, boxed
+#' labels, era bands, and automatic label placement.
 #'
 #' @md
-#' @name ggtimeline
 #' @keywords internal
 #' @author Brooks Benard (\email{brooksbenard10@gmail.com})
 #' @import ggplot2
