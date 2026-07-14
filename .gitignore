@@ -12,3 +12,5 @@ ggtimeline.Rcheck/
 # ignore stray plots but keep README/demo figures
 *.png
 !man/figures/*.png
+# Quarto/HTML export is large; keep the markdown snapshot instead
+data-raw/phenotype-mapping-methods.html
