@@ -366,9 +366,24 @@
 
 .build_layout <- function(data, date_col, topic_col, side, config, group_col = NULL,
                           label_size = 3.2, boxed = FALSE,
-                          label_method = c("auto", "mark", "repel", "simple")) {
+                          label_method = c("auto", "mark", "repel", "simple"),
+                          date_end_col = NULL) {
   label_method <- match.arg(label_method)
-  dates <- .date_to_numeric(data[[date_col]])
+  date_start <- .date_to_numeric(data[[date_col]])
+  date_end <- if (!is.null(date_end_col) && date_end_col %in% names(data)) {
+    .date_to_numeric(data[[date_end_col]])
+  } else {
+    date_start
+  }
+  # Swap inverted intervals so midpoints / extent stay well-defined.
+  swap <- is.finite(date_end) & is.finite(date_start) & date_end < date_start
+  if (any(swap)) {
+    tmp <- date_start[swap]
+    date_start[swap] <- date_end[swap]
+    date_end[swap] <- tmp
+  }
+  # Layout/collision use the interval midpoint (falls back to start for points).
+  dates <- (date_start + date_end) / 2
   labels <- as.character(data[[topic_col]])
   config$label_size <- label_size
   config$boxed <- isTRUE(boxed)
@@ -442,7 +457,9 @@
   text_x <- label_x + text_gap
 
   out <- data.frame(
-    .timeline_x = dates,
+    .timeline_x = to_x(dates),
+    .timeline_x_start = to_x(date_start),
+    .timeline_x_end = to_x(date_end),
     .timeline_y = axis_y,
     .timeline_label = labels,
     .timeline_side = sides,
@@ -451,6 +468,7 @@
     .timeline_text_x = to_x(text_x),
     .timeline_label_y = label_y,
     .timeline_anchor_x = to_x(dates),
+    .timeline_is_interval = abs(date_end - date_start) > 1e-8,
     stringsAsFactors = FALSE
   )
 

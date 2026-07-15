@@ -9,8 +9,13 @@ Meta
 *.tar.gz
 *.pdf
 ggtimeline.Rcheck/
-# ignore stray plots but keep README/demo figures
+# ignore stray plots but keep README/demo figures and package logos
 *.png
 !man/figures/*.png
+!inst/figures/*.png
 # Quarto/HTML export is large; keep the markdown snapshot instead
 data-raw/phenotype-mapping-methods.html
+# keep source logo artwork at package root for hex rebuild scripts
+!ggtimeline_logo.png
+!ggtimeline_logo_2.png
+..Rcheck/

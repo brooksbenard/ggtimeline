@@ -8,6 +8,11 @@
 #' @param label.size Border width for boxed labels.
 #' @param label.padding Padding around boxed label text.
 #' @param label.r Corner radius for boxed labels.
+#' @param shadow If `TRUE` and `boxed = TRUE`, draw a soft offset darker
+#'   rectangle behind each label box to create a drop-shadow effect.
+#' @param shadow_offset Offset (in "lines" units) applied to the shadow copy.
+#' @param shadow_colour,shadow_alpha Fill colour/opacity of the shadow rect.
+#'   `shadow_colour` defaults to a darkened version of the label fill.
 #' @inheritParams ggplot2::layer
 #' @param size Text size.
 #' @param colour Text colour.
@@ -30,6 +35,10 @@ geom_timeline_label <- function(mapping = NULL, data = NULL,
                                 label.size = 0.15,
                                 label.padding = grid::unit(0.25, "lines"),
                                 label.r = grid::unit(0.15, "lines"),
+                                shadow = FALSE,
+                                shadow_offset = 0.09,
+                                shadow_colour = NULL,
+                                shadow_alpha = 0.35,
                                 show.legend = FALSE,
                                 inherit.aes = TRUE,
                                 ...) {
@@ -54,6 +63,10 @@ geom_timeline_label <- function(mapping = NULL, data = NULL,
       label.size = label.size,
       label.padding = label.padding,
       label.r = label.r,
+      shadow = shadow,
+      shadow_offset = shadow_offset,
+      shadow_colour = shadow_colour,
+      shadow_alpha = shadow_alpha,
       ...
     )
   )
@@ -82,12 +95,19 @@ GeomTimelineLabel <- ggplot2::ggproto(
 
   draw_key = ggplot2::draw_key_text,
 
-  extra_params = c("na.rm", "boxed", "label.size", "label.padding", "label.r"),
+  extra_params = c(
+    "na.rm", "boxed", "label.size", "label.padding", "label.r",
+    "shadow", "shadow_offset", "shadow_colour", "shadow_alpha"
+  ),
 
   draw_panel = function(data, panel_params, coord, boxed = FALSE,
                         label.size = 0.15,
                         label.padding = grid::unit(0.25, "lines"),
                         label.r = grid::unit(0.15, "lines"),
+                        shadow = FALSE,
+                        shadow_offset = 0.09,
+                        shadow_colour = NULL,
+                        shadow_alpha = 0.35,
                         ...) {
     if (nrow(data) == 0L) {
       return(grid::nullGrob())
@@ -133,7 +153,7 @@ GeomTimelineLabel <- ggplot2::ggproto(
           lineheight = row$lineheight
         )
       )
-      grobs[[i]] <- grid::roundrectGrob(
+      box <- grid::roundrectGrob(
         x = pt$x,
         y = pt$y,
         width = grid::unit(1, "npc"),
@@ -146,8 +166,33 @@ GeomTimelineLabel <- ggplot2::ggproto(
         ),
         just = c(row$hjust, row$vjust)
       )
+
+      shadow_grob <- grid::nullGrob()
+      if (isTRUE(shadow)) {
+        shadow_fill <- shadow_colour %||% {
+          rgb <- tryCatch(
+            grDevices::col2rgb(row$fill)[, 1],
+            error = function(e) c(80, 80, 80)
+          )
+          grDevices::rgb(rgb[1] * 0.55, rgb[2] * 0.55, rgb[3] * 0.55, maxColorValue = 255)
+        }
+        shadow_grob <- grid::roundrectGrob(
+          x = pt$x + grid::unit(shadow_offset, "lines"),
+          y = pt$y - grid::unit(shadow_offset, "lines"),
+          width = grid::unit(1, "npc"),
+          height = grid::unit(1, "npc"),
+          r = label.r,
+          gp = grid::gpar(
+            col = NA,
+            fill = alpha(shadow_fill, shadow_alpha)
+          ),
+          just = c(row$hjust, row$vjust)
+        )
+      }
+
       grobs[[i]] <- grid::grobTree(
-        grobs[[i]],
+        shadow_grob,
+        box,
         txt
       )
     }

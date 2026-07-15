@@ -5,6 +5,7 @@
 \alias{scale_timeline_colour}
 \alias{scale_timeline_fill}
 \alias{scale_timeline_shape}
+\alias{scale_timeline_size}
 \alias{timeline_group_guide}
 \title{Timeline scale helpers}
 \usage{
@@ -14,16 +15,22 @@ scale_timeline_fill(palette = NULL, ...)
 
 scale_timeline_shape(...)
 
+scale_timeline_size(...)
+
 timeline_group_guide(
   guide = ggplot2::guide_legend(override.aes = list(linetype = 0, size = 4))
 )
 }
 \arguments{
-\item{palette}{Character vector of colours for timeline categories.
-Defaults to \code{\link[=timeline_palette]{timeline_palette()}}.}
+\item{palette}{Colour specification. May be:
+\itemize{
+\item \code{NULL} — \code{\link[=timeline_palette]{timeline_palette()}}
+\item a character vector of hex/colours
+\item a named preset: \code{"okabe"}, \code{"nature"}, \code{"nejm"}, \code{"default"}
+(named presets beyond \code{"default"} are scaffolded; see ROADMAP.md)
+}}
 
-\item{...}{Additional arguments passed to \code{\link[ggplot2:scale_manual]{ggplot2::scale_colour_manual()}}
-or \code{\link[ggplot2:scale_manual]{ggplot2::scale_fill_manual()}}.}
+\item{...}{Additional arguments passed to the underlying ggplot2 scale.}
 
 \item{guide}{A ggplot2 guide function, typically \code{\link[ggplot2:guide_legend]{ggplot2::guide_legend()}}.}
 }

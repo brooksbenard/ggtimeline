@@ -27,6 +27,8 @@ ggtimeline(
   connector_colour = NULL,
   connector_size = 0.45,
   show_points = NULL,
+  span_height = 0.12,
+  span_alpha = 0.8,
   eras = NULL,
   era_alpha = 0.16,
   era_label_size = NULL,
@@ -46,16 +48,30 @@ ggtimeline(
   date_breaks = ggplot2::waiver(),
   date_labels = "\%Y",
   expand = 0.1,
-  background = "white"
+  background = "white",
+  label_wrap = NULL,
+  cluster_radius = NULL,
+  connector_type = NULL,
+  label_box = NULL,
+  label_box_fill = NULL,
+  label_box_colour = NULL,
+  label_box_alpha = NULL,
+  label_box_radius = NULL,
+  axis_tip_style = NULL,
+  axis_gradient = NULL,
+  era_label_position = NULL,
+  era_border = NULL,
+  era_label_angle = NULL
 )
 }
 \arguments{
 \item{data}{A data frame containing timeline events.}
 
 \item{mapping}{An \code{\link[ggplot2:aes]{ggplot2::aes()}} mapping. Required aesthetics are
-\code{x} (date) and \code{label} (topic text). Optional aesthetics include
-\code{colour}, \code{fill}, \code{shape}, \code{size}, \code{linetype}, \code{alpha}, and \code{group}
-for shared styling.}
+\code{x} (start date) and \code{label} (topic text). Optional \code{xend} (or \code{xmax})
+marks interval events drawn as horizontal span bars; labels and connectors
+anchor at the interval midpoint. Other optional aesthetics include
+\code{colour}, \code{fill}, \code{shape}, \code{size}, \code{linetype}, \code{alpha}, and \code{group}.}
 
 \item{style}{Visualisation type. Currently only \code{"ribbon"} is available.}
 
@@ -112,7 +128,12 @@ style-specific colour.}
 \item{show_points}{If \code{TRUE}, draw event markers where connectors meet the
 axis. Defaults to \code{FALSE} (clean stems). When a \code{shape} aesthetic is
 mapped and points are shown, markers use that scale and sit on the bar
-edge (not the ribbon centre).}
+edge (not the ribbon centre). For intervals, markers sit at the midpoint.}
+
+\item{span_height}{Vertical half-thickness of interval span bars in y-units.
+Ignored for point events. Defaults to \code{0.12}.}
+
+\item{span_alpha}{Opacity of interval span bars (0–1). Defaults to \code{0.8}.}
 
 \item{eras}{Optional data frame of background era bands with \code{start}/\code{end}
 (or \code{xmin}/\code{xmax}) and optional \code{label}, \code{fill}/\code{colour}, and \code{alpha}
@@ -173,6 +194,54 @@ event (a small fraction of this pad); the right side still grows enough to
 clear labels and the arrow tip.}
 
 \item{background}{Plot background colour.}
+
+\item{label_wrap}{Character width to wrap topic labels at (via
+\code{\link[base:strwrap]{base::strwrap()}} / \code{stringr::str_wrap()} when available). \code{NULL}
+(default) leaves labels unwrapped.}
+
+\item{cluster_radius}{Numeric radius (in date units, e.g. days) within
+which nearby event dates are treated as one visual cluster: their
+labels snap to a shared x position (per side) while stems still
+originate from each event's own date. \code{NULL} (default) disables
+clustering.}
+
+\item{connector_type}{Connector style: \code{"straight"}, \code{"elbow"}, \code{"curved"},
+or \code{"none"} (omit connectors entirely). When set, overrides \code{elbowed}.}
+
+\item{label_box}{Controls label boxing. \code{NULL} (default) uses the style
+default (boxed for \code{"ribbon"}). \code{TRUE}/\code{FALSE} force boxed/plain labels.
+\code{"shadow"} boxes labels and draws a soft offset darker rectangle behind
+each box for a drop-shadow effect.}
+
+\item{label_box_fill}{Fixed fill colour for label boxes. \code{NULL} (default)
+keeps the mapped \code{fill} aesthetic (e.g. by category) and its legend.
+Setting a fixed colour disables the fill legend for this layer.}
+
+\item{label_box_colour}{Text/border colour for label boxes. Defaults to
+\code{"white"}.}
+
+\item{label_box_alpha}{Opacity for label boxes. \code{NULL} keeps the default
+(opaque).}
+
+\item{label_box_radius}{Corner radius (points) for label boxes. Defaults
+to \code{4}.}
+
+\item{axis_tip_style}{Shape of the bar axis tip: \code{"arrow"} (default),
+\code{"flat"} / \code{"none"} (square end), or \code{"circle"} (rounded cap). Ignored
+for \code{axis_shape = "line"}.}
+
+\item{axis_gradient}{If \code{TRUE}, fill the bar axis with a left-to-right
+linear gradient instead of a solid colour (requires R >= 4.1).}
+
+\item{era_label_position}{Where era labels sit within their band:
+\code{"top"} (default), \code{"bottom"}, or \code{"center"}.}
+
+\item{era_border}{Controls era band boundary edges: \code{TRUE} (default)
+draws tinted dashed edges, \code{FALSE} omits them, or a colour string draws
+edges in that fixed colour.}
+
+\item{era_label_angle}{Rotation angle (degrees) for era labels. Default
+\code{0}.}
 }
 \value{
 A \code{\link[ggplot2:ggplot]{ggplot2::ggplot()}} object that can be further customised with
@@ -209,5 +278,19 @@ ggtimeline(
 ) +
   scale_timeline_fill() +
   scale_timeline_shape()
+
+# Interval events (start + end → span bars)
+trials <- data.frame(
+  start = as.Date(c("2021-01-01", "2022-06-01")),
+  end = as.Date(c("2021-09-01", "2023-02-01")),
+  topic = c("Phase I", "Phase II"),
+  arm = c("A", "B")
+)
+ggtimeline(
+  trials,
+  aes(x = start, xend = end, label = topic, fill = arm),
+  year_breaks = "1 year"
+) +
+  scale_timeline_fill()
 }
 }

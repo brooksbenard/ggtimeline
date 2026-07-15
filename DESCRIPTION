@@ -28,8 +28,15 @@ Suggests:
     covr,
     dplyr,
     ggrepel,
+    httr,
+    httr2,
+    jsonlite,
+    knitr,
+    pkgdown,
     pkgload,
     rmarkdown,
+    stringr,
     tinytest
+VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3

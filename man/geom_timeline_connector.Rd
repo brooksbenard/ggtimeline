@@ -14,10 +14,12 @@ geom_timeline_connector(
   data = NULL,
   stat = "timeline",
   position = "identity",
-  elbowed = TRUE,
+  elbowed = FALSE,
+  connector_type = NULL,
   size = 0.4,
   colour = "grey50",
   linetype = 1,
+  curvature = 0.3,
   show.legend = FALSE,
   inherit.aes = TRUE,
   ...
@@ -72,14 +74,21 @@ to use \code{position_jitter()}, give the position as \code{"jitter"}.
 \link[ggplot2:layer_positions]{layer position} documentation.
 }}
 
-\item{elbowed}{If \code{TRUE} (default), draw horizontal-then-vertical elbows;
-if \code{FALSE}, draw straight diagonal connectors.}
+\item{elbowed}{If \code{TRUE}, draw horizontal-then-vertical elbows; if \code{FALSE}
+(default), draw straight diagonal connectors. May also be \code{"curved"} as
+an alias for \code{connector_type = "curved"}.}
+
+\item{connector_type}{Connector style: \code{"straight"}, \code{"elbow"}, \code{"curved"},
+or \code{"none"} (no connector drawn). When set, overrides \code{elbowed}.}
 
 \item{size}{Line width.}
 
 \item{colour}{Line colour.}
 
 \item{linetype}{Line type.}
+
+\item{curvature}{Curvature passed to \code{\link[grid:grid.curve]{grid::curveGrob()}} when
+\code{connector_type = "curved"} (or \code{elbowed = "curved"}). Default \code{0.3}.}
 
 \item{show.legend}{logical. Should this layer be included in the legends?
 \code{NA}, the default, includes if any aesthetics are mapped.

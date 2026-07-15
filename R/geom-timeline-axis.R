@@ -13,6 +13,14 @@
 #'   Ignored for `"line"`.
 #' @param tip_frac Fraction of the axis length used for the right arrow tip.
 #'   Smaller values yield a shorter, less stretched head. Default `0.015`.
+#' @param tip_style Shape of the right end of a bar axis: `"arrow"` (default,
+#'   a normal flared tip), `"flat"` / `"none"` (square end, no flare), or
+#'   `"circle"` (rectangle body ending just before `xmax` plus a circular cap).
+#'   Ignored for `shape = "line"`.
+#' @param gradient If `TRUE`, fill the bar axis with a left-to-right linear
+#'   gradient (light to `fill`) instead of a solid colour. Requires
+#'   R >= 4.1 (uses [grid::linearGradient()]); falls back to a solid fill
+#'   with a one-time warning on older R. Ignored for `shape = "line"`.
 #' @param arrow If `TRUE` and `shape = "line"`, draw a closed arrowhead at the
 #'   right end. For `"bar"`, the tip is always drawn as part of the polygon.
 #' @param start_cap If `TRUE` and `shape = "line"`, draw a filled dot at the
@@ -31,6 +39,8 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
                                shape = c("bar", "line"),
                                height = 0.42,
                                tip_frac = 0.015,
+                               tip_style = c("arrow", "flat", "none", "circle"),
+                               gradient = FALSE,
                                arrow = TRUE,
                                start_cap = TRUE,
                                arrow_length = grid::unit(0.25, "cm"),
@@ -38,6 +48,7 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
                                inherit.aes = TRUE,
                                ...) {
   shape <- match.arg(shape)
+  tip_style <- match.arg(tip_style)
   ggplot2::layer(
     data = data,
     mapping = mapping,
@@ -53,6 +64,8 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
       shape = shape,
       height = height,
       tip_frac = tip_frac,
+      tip_style = tip_style,
+      gradient = gradient,
       arrow = arrow,
       start_cap = start_cap,
       arrow_length = arrow_length,
@@ -62,15 +75,34 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
 }
 
 # Thick rectangular body with a compact right-pointing arrow tip.
-.bar_arrow_vertices <- function(xmin, xmax, y, height, tip_frac) {
+.bar_arrow_vertices <- function(xmin, xmax, y, height, tip_frac,
+                                tip_style = "arrow") {
   xmin <- .date_to_numeric(xmin)
   xmax <- .date_to_numeric(xmax)
   span <- max(xmax - xmin, 1)
+  half <- height
+
+  if (tip_style %in% c("flat", "none")) {
+    return(data.frame(
+      x = c(xmin, xmax, xmax, xmin, xmin),
+      y = c(y + half, y + half, y - half, y - half, y + half)
+    ))
+  }
+
+  if (identical(tip_style, "circle")) {
+    # Reserve room for a circular cap at the right end; body stops short.
+    cap_r <- half
+    body_end <- max(xmax - cap_r * 1.6, xmin)
+    return(data.frame(
+      x = c(xmin, body_end, body_end, xmin, xmin),
+      y = c(y + half, y + half, y - half, y - half, y + half)
+    ))
+  }
+
+  # Default "arrow": mild flare beyond the bar thickness at the tip.
   # Keep the tip short even on long timelines so it does not look stretched.
   tip <- min(max(span * tip_frac, 18), max(span * 0.025, 45))
-  half <- height
   body_end <- xmax - tip
-  # Mild flare beyond the bar thickness for a conventional arrow look.
   tip_half <- half * 1.2
 
   data.frame(
@@ -97,6 +129,30 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
   )
 }
 
+# One-time warning cache for gradient fallback on older R.
+.timeline_gradient_warned <- new.env(parent = emptyenv())
+
+.timeline_gradient_fill <- function(fill_col, alpha_val) {
+  if (!exists("linearGradient", where = asNamespace("grid"), inherits = FALSE)) {
+    if (!isTRUE(.timeline_gradient_warned$warned)) {
+      rlang::warn(
+        "`axis_gradient = TRUE` requires R >= 4.1 (grid::linearGradient); using a solid fill instead."
+      )
+      .timeline_gradient_warned$warned <- TRUE
+    }
+    return(fill_col)
+  }
+  light <- tryCatch({
+    rgb <- grDevices::col2rgb(fill_col)[, 1]
+    lightened <- pmin(255, rgb + (255 - rgb) * 0.72)
+    grDevices::rgb(lightened[1], lightened[2], lightened[3], maxColorValue = 255)
+  }, error = function(e) "#FFFFFF")
+  grid::linearGradient(
+    colours = alpha(c(light, fill_col), alpha_val),
+    x1 = 0, y1 = 0.5, x2 = 1, y2 = 0.5
+  )
+}
+
 #' @rdname geom_timeline_axis
 #' @export
 GeomTimelineAxis <- ggplot2::ggproto(
@@ -116,7 +172,7 @@ GeomTimelineAxis <- ggplot2::ggproto(
 
   extra_params = c(
     "na.rm", "arrow", "start_cap", "arrow_length",
-    "shape", "height", "tip_frac", "fill"
+    "shape", "height", "tip_frac", "fill", "tip_style", "gradient"
   ),
 
   draw_panel = function(data, panel_params, coord,
@@ -127,6 +183,8 @@ GeomTimelineAxis <- ggplot2::ggproto(
                         shape = "bar",
                         height = 0.42,
                         tip_frac = 0.015,
+                        tip_style = "arrow",
+                        gradient = FALSE,
                         arrow = TRUE,
                         start_cap = TRUE,
                         arrow_length = grid::unit(0.25, "cm"),
@@ -151,24 +209,56 @@ GeomTimelineAxis <- ggplot2::ggproto(
         xmax = row$xmax,
         y = row$y,
         height = height,
-        tip_frac = tip_frac
+        tip_frac = tip_frac,
+        tip_style = tip_style
       )
       if (inherits(row$xmin, "Date") || inherits(row$xmax, "Date")) {
         verts$x <- as.Date(verts$x, origin = "1970-01-01")
       }
       coords <- ggplot2::coord_munch(coord, verts, panel_params)
-      return(grid::polygonGrob(
+      body_fill <- if (isTRUE(gradient)) {
+        .timeline_gradient_fill(fill %||% "white", alpha_val)
+      } else {
+        fill_col
+      }
+      body_grob <- grid::polygonGrob(
         x = coords$x,
         y = coords$y,
         default.units = "native",
         gp = grid::gpar(
           col = line_col,
-          fill = fill_col,
+          fill = body_fill,
           lwd = size * ggplot2::.pt,
           lty = linetype,
           linejoin = "mitre"
         )
-      ))
+      )
+
+      if (!identical(tip_style, "circle")) {
+        return(body_grob)
+      }
+
+      # Circular cap at the right end, radius approximately the bar height.
+      xmax_num <- .date_to_numeric(row$xmax)
+      xmin_num <- .date_to_numeric(row$xmin)
+      cap_r <- height
+      cap_x <- xmax_num - cap_r
+      cap_pt <- data.frame(x = cap_x, y = row$y)
+      if (inherits(row$xmin, "Date") || inherits(row$xmax, "Date")) {
+        cap_pt$x <- as.Date(cap_pt$x, origin = "1970-01-01")
+      }
+      cap_c <- ggplot2::coord_munch(coord, cap_pt, panel_params)
+      # Convert the y-unit radius to npc via the panel's y range.
+      y_range <- panel_params$y.range %||%
+        panel_params$y$continuous_range %||% c(-1, 1)
+      r_npc <- grid::unit(cap_r / diff(y_range), "npc")
+      cap_grob <- grid::circleGrob(
+        x = cap_c$x,
+        y = cap_c$y,
+        r = r_npc,
+        gp = grid::gpar(col = line_col, fill = body_fill, lwd = size * ggplot2::.pt)
+      )
+      return(grid::grobTree(body_grob, cap_grob))
     }
 
     # Thin line -------------------------------------------------------------

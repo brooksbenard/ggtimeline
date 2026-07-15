@@ -26,6 +26,10 @@ geom_timeline_label(
   label.size = 0.15,
   label.padding = grid::unit(0.25, "lines"),
   label.r = grid::unit(0.15, "lines"),
+  shadow = FALSE,
+  shadow_offset = 0.09,
+  shadow_colour = NULL,
+  shadow_alpha = 0.35,
   show.legend = FALSE,
   inherit.aes = TRUE,
   ...
@@ -93,6 +97,14 @@ to use \code{position_jitter()}, give the position as \code{"jitter"}.
 \item{label.padding}{Padding around boxed label text.}
 
 \item{label.r}{Corner radius for boxed labels.}
+
+\item{shadow}{If \code{TRUE} and \code{boxed = TRUE}, draw a soft offset darker
+rectangle behind each label box to create a drop-shadow effect.}
+
+\item{shadow_offset}{Offset (in "lines" units) applied to the shadow copy.}
+
+\item{shadow_colour, shadow_alpha}{Fill colour/opacity of the shadow rect.
+\code{shadow_colour} defaults to a darkened version of the label fill.}
 
 \item{show.legend}{logical. Should this layer be included in the legends?
 \code{NA}, the default, includes if any aesthetics are mapped.

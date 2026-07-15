@@ -15,8 +15,14 @@
 #' @param label_colour Optional fixed colour for era labels. When `NULL`,
 #'   labels use a darkened version of each band's fill.
 #' @param label_y Optional y position for era labels. Defaults to the top of
-#'   each band (`ymax`).
+#'   each band (`ymax`); ignored when `label_position` is set.
+#' @param label_position Where to place the era label within the band:
+#'   `"top"` (default), `"bottom"`, or `"center"`.
+#' @param label_angle Rotation angle (degrees) for era labels. Default `0`.
 #' @param show_bounds If `TRUE`, draw dashed vertical edges at era start/end.
+#' @param border Controls the era boundary edges. `TRUE` (default) draws
+#'   them using `show_bounds`'s tinted colour; `FALSE` skips them entirely;
+#'   a colour string draws boundaries in that fixed colour instead.
 #' @param ... Additional arguments passed to [ggplot2::layer()].
 #' @export
 #' @rdname geom_timeline_era
@@ -44,10 +50,14 @@ geom_timeline_era <- function(mapping = NULL, data = NULL,
                               label_size = 3.2,
                               label_colour = NULL,
                               label_y = NULL,
+                              label_position = c("top", "bottom", "center"),
+                              label_angle = 0,
                               show_bounds = TRUE,
+                              border = TRUE,
                               show.legend = FALSE,
                               inherit.aes = FALSE,
                               ...) {
+  label_position <- match.arg(label_position)
   ggplot2::layer(
     data = data,
     mapping = mapping,
@@ -61,7 +71,10 @@ geom_timeline_era <- function(mapping = NULL, data = NULL,
       label_size = label_size,
       label_colour = label_colour,
       label_y = label_y,
+      label_position = label_position,
+      label_angle = label_angle,
       show_bounds = show_bounds,
+      border = border,
       ...
     )
   )
@@ -87,7 +100,8 @@ GeomTimelineEra <- ggplot2::ggproto(
   draw_key = ggplot2::draw_key_rect,
 
   extra_params = c(
-    "na.rm", "label_size", "label_colour", "label_y", "show_bounds", "alpha"
+    "na.rm", "label_size", "label_colour", "label_y", "label_position",
+    "label_angle", "show_bounds", "border", "alpha"
   ),
 
   draw_panel = function(data, panel_params, coord,
@@ -95,10 +109,20 @@ GeomTimelineEra <- ggplot2::ggproto(
                         label_size = 3.2,
                         label_colour = NULL,
                         label_y = NULL,
+                        label_position = "top",
+                        label_angle = 0,
                         show_bounds = TRUE,
+                        border = TRUE,
                         ...) {
     if (nrow(data) == 0L) {
       return(grid::nullGrob())
+    }
+    draw_border <- !isFALSE(border) && isTRUE(show_bounds)
+    border_colour_fixed <- if (is.character(border) && length(border) == 1L &&
+                                 !border %in% c("TRUE", "FALSE")) {
+      border
+    } else {
+      NULL
     }
 
     # Fall back to panel y-range when ymin/ymax not supplied.
@@ -133,7 +157,8 @@ GeomTimelineEra <- ggplot2::ggproto(
 
       parts <- list(band)
 
-      if (isTRUE(show_bounds)) {
+      if (draw_border) {
+        border_col <- border_colour_fixed %||% edge_col
         for (xv in list(row$xmin, row$xmax)) {
           edge_df <- data.frame(x = c(xv, xv), y = c(ymin, ymax))
           edge_c <- ggplot2::coord_munch(coord, edge_df, panel_params)
@@ -143,7 +168,7 @@ GeomTimelineEra <- ggplot2::ggproto(
             x1 = edge_c$x[2],
             y1 = edge_c$y[2],
             gp = grid::gpar(
-              col = edge_col,
+              col = border_col,
               lwd = 0.6 * ggplot2::.pt,
               lty = row$linetype %||% "dashed"
             )
@@ -153,8 +178,14 @@ GeomTimelineEra <- ggplot2::ggproto(
 
       lab <- row$label
       if (!is.null(lab) && length(lab) && !is.na(lab) && nzchar(as.character(lab))) {
-        # Place labels at the very top of the era band.
-        ly <- label_y %||% ymax
+        # Place the label according to `label_position` (defaults to the top).
+        ly <- label_y %||% switch(
+          label_position,
+          bottom = ymin,
+          center = (ymin + ymax) / 2,
+          ymax
+        )
+        vjust <- switch(label_position, bottom = 0, center = 0.5, 1)
         mid_x <- mean(c(.date_to_numeric(row$xmin), .date_to_numeric(row$xmax)))
         if (inherits(row$xmin, "Date") || inherits(row$xmax, "Date")) {
           mid_x <- as.Date(mid_x, origin = "1970-01-01")
@@ -179,7 +210,8 @@ GeomTimelineEra <- ggplot2::ggproto(
           x = lab_c$x,
           y = lab_c$y,
           hjust = 0.5,
-          vjust = 1,
+          vjust = vjust,
+          rot = label_angle %||% 0,
           gp = grid::gpar(
             col = text_col,
             fontsize = label_size * ggplot2::.pt,

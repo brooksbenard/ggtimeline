@@ -1,0 +1,55 @@
+---
+title: "Phenotype methods timeline"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Phenotype methods timeline}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 10,
+  fig.height = 7,
+  dpi = 96
+)
+```
+
+```{r setup}
+library(ggplot2)
+library(ggtimeline)
+data("phenotype_methods_timeline")
+```
+
+Validate input columns before plotting:
+
+```{r}
+ggtimeline_data(phenotype_methods_timeline, date = "date", label = "topic")
+```
+
+```{r demo, fig.alt = "Ribbon timeline of phenotype mapping methods"}
+eras <- data.frame(
+  start = as.Date(c("2020-07-01", "2023-01-01", "2025-01-01")),
+  end   = as.Date(c("2022-12-31", "2024-12-31", "2026-12-31")),
+  label = c("Emergence", "Expansion", "Acceleration"),
+  fill  = c("#4C72B0", "#55A868", "#C44E52")
+)
+
+ggtimeline(
+  phenotype_methods_timeline,
+  aes(x = date, label = topic, fill = category, shape = status),
+  year_breaks = "1 year",
+  year_side = "inside",
+  year_lines = 1,
+  eras = eras,
+  show_points = TRUE,
+  base_height = 1.2,
+  height_step = 0.9,
+  label_size = 3.2
+) +
+  scale_timeline_fill(name = "Method category") +
+  scale_timeline_shape(name = "Publication status") +
+  labs(title = "Phenotype mapping methods")
+```

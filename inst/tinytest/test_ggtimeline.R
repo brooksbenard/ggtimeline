@@ -295,3 +295,257 @@ expect_true(any(vapply(p_pts$layers, function(l) {
 # palette
 expect_true(length(timeline_palette()) >= 5L)
 expect_equal(length(timeline_palette(3)), 3L)
+
+# data validator
+expect_identical(
+  ggtimeline_data(phenotype_methods_timeline, date = "date", label = "topic"),
+  phenotype_methods_timeline
+)
+expect_error(
+  ggtimeline_data(phenotype_methods_timeline, date = "missing_col"),
+  "not found"
+)
+
+# size scale helper
+expect_inherits(scale_timeline_size(), "ScaleContinuous")
+
+# annotations: add_milestone() / add_span() build via ggplot_add.timeline_annotation
+milestone <- add_milestone(as.Date("2024-01-01"), label = "Key event")
+expect_inherits(milestone, "timeline_annotation")
+p_milestone <- ggtimeline(
+  head(phenotype_methods_timeline, 8),
+  aes(x = date, label = topic, fill = category)
+) + milestone
+expect_inherits(p_milestone, "ggplot")
+expect_inherits(ggplot2::ggplot_build(p_milestone), "ggplot_built")
+
+span_annot <- add_span(as.Date("2024-01-01"), as.Date("2025-01-01"), label = "Range")
+expect_inherits(span_annot, "timeline_annotation")
+p_span <- ggtimeline(
+  head(phenotype_methods_timeline, 8),
+  aes(x = date, label = topic, fill = category)
+) + span_annot
+expect_inherits(p_span, "ggplot")
+expect_inherits(ggplot2::ggplot_build(p_span), "ggplot_built")
+
+# theme_timeline() returns a usable ggplot2 theme
+expect_inherits(theme_timeline("minimal"), "theme")
+expect_inherits(theme_timeline("nature"), "theme")
+expect_inherits(theme_timeline("dark"), "theme")
+expect_inherits(
+  ggtimeline(head(phenotype_methods_timeline, 5), aes(x = date, label = topic)) +
+    theme_timeline("nature"),
+  "ggplot"
+)
+
+# scale_timeline_fill() named presets
+expect_inherits(scale_timeline_fill(palette = "okabe"), "ScaleDiscrete")
+expect_inherits(scale_timeline_fill(palette = "nature"), "ScaleDiscrete")
+expect_inherits(scale_timeline_colour(palette = "nejm"), "ScaleDiscrete")
+
+# label_wrap builds and actually wraps long labels
+p_wrap <- ggtimeline(
+  head(phenotype_methods_timeline, 5),
+  aes(x = date, label = topic),
+  label_wrap = 4
+)
+expect_inherits(p_wrap, "ggplot")
+expect_inherits(ggplot2::ggplot_build(p_wrap), "ggplot_built")
+wrapped_labels <- ggtimeline:::.wrap_labels(c("A really long label here"), width = 6)
+expect_true(grepl("\n", wrapped_labels))
+
+# cluster_radius snaps nearby label positions to a shared centre
+p_cluster <- ggtimeline(
+  phenotype_methods_timeline,
+  aes(x = date, label = topic, fill = category),
+  cluster_radius = 200
+)
+expect_inherits(p_cluster, "ggplot")
+expect_inherits(ggplot2::ggplot_build(p_cluster), "ggplot_built")
+
+# connector_type: straight / elbow / curved / none all build
+for (ct in c("straight", "elbow", "curved", "none")) {
+  p_ct <- ggtimeline(
+    head(phenotype_methods_timeline, 6),
+    aes(x = date, label = topic),
+    connector_type = ct
+  )
+  expect_inherits(p_ct, "ggplot")
+  expect_inherits(ggplot2::ggplot_build(p_ct), "ggplot_built")
+}
+# "none" omits the connector layer entirely
+p_none <- ggtimeline(
+  head(phenotype_methods_timeline, 6),
+  aes(x = date, label = topic),
+  connector_type = "none"
+)
+expect_false(any(vapply(p_none$layers, function(l) {
+  inherits(l$geom, "GeomTimelineConnector")
+}, logical(1))))
+
+# label_box: TRUE / FALSE / "shadow" all build; shadow adds an extra geom_label layer
+p_box_true <- ggtimeline(head(phenotype_methods_timeline, 5), aes(x = date, label = topic), label_box = TRUE)
+p_box_false <- ggtimeline(head(phenotype_methods_timeline, 5), aes(x = date, label = topic), label_box = FALSE)
+p_box_shadow <- ggtimeline(head(phenotype_methods_timeline, 5), aes(x = date, label = topic), label_box = "shadow")
+expect_inherits(p_box_true, "ggplot")
+expect_inherits(p_box_false, "ggplot")
+expect_inherits(p_box_shadow, "ggplot")
+n_labels_plain <- sum(vapply(p_box_true$layers, function(l) inherits(l$geom, "GeomLabel"), logical(1)))
+n_labels_shadow <- sum(vapply(p_box_shadow$layers, function(l) inherits(l$geom, "GeomLabel"), logical(1)))
+expect_true(n_labels_shadow > n_labels_plain)
+
+# label_box_fill/colour/alpha/radius honoured without erroring
+p_box_style <- ggtimeline(
+  head(phenotype_methods_timeline, 5),
+  aes(x = date, label = topic),
+  label_box_fill = "steelblue",
+  label_box_colour = "black",
+  label_box_alpha = 0.6,
+  label_box_radius = 8
+)
+expect_inherits(ggplot2::ggplot_build(p_box_style), "ggplot_built")
+
+# axis_tip_style + axis_gradient
+for (ts in c("arrow", "flat", "none", "circle")) {
+  p_tip <- ggtimeline(
+    head(phenotype_methods_timeline, 5),
+    aes(x = date, label = topic),
+    axis_tip_style = ts,
+    axis_gradient = TRUE
+  )
+  expect_inherits(p_tip, "ggplot")
+  expect_inherits(ggplot2::ggplot_build(p_tip), "ggplot_built")
+}
+
+# era_label_position / era_border / era_label_angle
+eras_extra <- data.frame(
+  start = as.Date("2020-01-01"),
+  end = as.Date("2026-12-31"),
+  label = "Full span"
+)
+for (pos in c("top", "bottom", "center")) {
+  p_era <- ggtimeline(
+    head(phenotype_methods_timeline, 5),
+    aes(x = date, label = topic),
+    eras = eras_extra,
+    era_label_position = pos,
+    era_border = FALSE,
+    era_label_angle = 10
+  )
+  expect_inherits(p_era, "ggplot")
+  expect_inherits(ggplot2::ggplot_build(p_era), "ggplot_built")
+}
+
+# ggtimeline_swimlane(): smoke test with a tiny grouped dataset
+swim_data <- data.frame(
+  date = as.Date(c("2020-01-01", "2020-06-01", "2021-01-01", "2021-06-01")),
+  topic = c("A1", "A2", "B1", "B2"),
+  grp = c("Alpha", "Alpha", "Beta", "Beta"),
+  stringsAsFactors = FALSE
+)
+p_swim <- ggtimeline_swimlane(
+  swim_data,
+  aes(x = date, label = topic, group = grp, fill = grp)
+)
+expect_inherits(p_swim, "ggplot")
+expect_inherits(ggplot2::ggplot_build(p_swim), "ggplot_built")
+expect_error(
+  ggtimeline_swimlane(swim_data, aes(x = date, label = topic)),
+  "grouping column"
+)
+
+# facet_timeline(): returns a facet_wrap-compatible Facet object
+facet_obj <- facet_timeline(~category)
+expect_inherits(facet_obj, "Facet")
+p_facet <- ggtimeline(
+  head(phenotype_methods_timeline, 10),
+  aes(x = date, label = topic, fill = category)
+) + facet_obj
+expect_inherits(p_facet, "ggplot")
+
+# ggtimeline_gantt(): smoke test with tiny interval + point data
+gantt_data <- data.frame(
+  start = as.Date(c("2021-01-01", "2022-01-01", "2022-06-01")),
+  end = as.Date(c("2021-08-01", "2022-01-01", "2023-01-01")),
+  topic = c("Phase I", "Kickoff", "Phase II"),
+  arm = c("A", "A", "B"),
+  stringsAsFactors = FALSE
+)
+p_gantt <- ggtimeline_gantt(
+  gantt_data,
+  aes(x = start, xend = end, label = topic, fill = arm)
+)
+expect_inherits(p_gantt, "ggplot")
+built_gantt <- ggplot2::ggplot_build(p_gantt)
+expect_inherits(built_gantt, "ggplot_built")
+gantt_fill <- built_gantt$data[[1]]$fill
+expect_true(length(unique(gantt_fill)) == 2L)
+
+# from_openalex() / from_pubmed(): error clearly on empty ids
+expect_error(from_openalex(character(0)), "ids")
+expect_error(from_pubmed(character(0)), "ids")
+if (requireNamespace("httr2", quietly = TRUE) || requireNamespace("httr", quietly = TRUE)) {
+  if (requireNamespace("jsonlite", quietly = TRUE)) {
+    net_ok <- tryCatch({
+      Sys.setenv(TZ = Sys.getenv("TZ", unset = "UTC"))
+      res <- from_openalex("10.1038/s41586-020-2649-2")
+      is.data.frame(res) && nrow(res) == 1L
+    }, error = function(e) NA)
+    if (!is.na(net_ok)) {
+      expect_true(net_ok)
+    }
+  }
+}
+
+# interval / range events (x + xend)
+intervals <- data.frame(
+  start = as.Date(c("2021-01-01", "2022-03-01", "2023-01-01")),
+  end = as.Date(c("2021-08-01", "2022-03-01", "2023-11-01")),
+  topic = c("Phase I", "Milestone", "Phase II"),
+  category = c("A", "B", "A"),
+  stringsAsFactors = FALSE
+)
+expect_identical(
+  ggtimeline_data(intervals, start = "start", end = "end", label = "topic"),
+  intervals
+)
+p_int <- ggtimeline(
+  intervals,
+  aes(x = start, xend = end, label = topic, fill = category),
+  style = "ribbon",
+  year_breaks = "1 year",
+  span_height = 0.1
+)
+expect_inherits(p_int, "ggplot")
+expect_true(any(vapply(p_int$layers, function(l) {
+  inherits(l$geom, "GeomTimelineSpan")
+}, logical(1))))
+
+# layout midpoint for a proper interval
+layout_int <- ggtimeline:::.build_layout(
+  data = intervals[1, , drop = FALSE],
+  date_col = "start",
+  topic_col = "topic",
+  side = "above",
+  config = list(
+    axis_y = 0, base_height = 1.2, height_step = 0.8,
+    label_width_days = 100, min_gap_days = 24, plot_span = 800
+  ),
+  label_size = 3,
+  label_method = "simple",
+  date_end_col = "end"
+)
+expect_true(isTRUE(layout_int$.timeline_is_interval[1]))
+expect_equal(
+  as.numeric(layout_int$.timeline_anchor_x[1]),
+  mean(as.numeric(c(intervals$start[1], intervals$end[1])))
+)
+# zero-length xend collapses to a point event (no span layer needed)
+p_pt <- ggtimeline(
+  intervals[2, , drop = FALSE],
+  aes(x = start, xend = end, label = topic),
+  style = "ribbon"
+)
+expect_false(any(vapply(p_pt$layers, function(l) {
+  inherits(l$geom, "GeomTimelineSpan")
+}, logical(1))))

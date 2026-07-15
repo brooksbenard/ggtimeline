@@ -48,6 +48,70 @@ timeline_palette <- function(n = NULL) {
   grDevices::colorRampPalette(base)(n)
 }
 
+.resolve_timeline_palette <- function(palette = NULL) {
+  if (is.null(palette)) {
+    return(timeline_palette())
+  }
+  if (is.character(palette) && length(palette) == 1L &&
+        !grepl("^#", palette)) {
+    key <- tolower(palette)
+    if (identical(key, "default")) {
+      return(timeline_palette())
+    }
+    presets <- .timeline_palette_presets()
+    if (key %in% names(presets)) {
+      cols <- presets[[key]]
+      named <- timeline_palette()
+      # Keep familiar category names when counts match.
+      if (length(named) <= length(cols)) {
+        names(cols)[seq_along(named)] <- names(named)
+      }
+      return(cols)
+    }
+  }
+  palette
+}
+
+.wrap_labels <- function(labels, width = NULL) {
+  labels <- as.character(labels)
+  if (is.null(width) || !is.finite(width) || width < 1) {
+    return(labels)
+  }
+  width <- as.integer(width)
+  if (requireNamespace("stringr", quietly = TRUE)) {
+    return(stringr::str_wrap(labels, width = width))
+  }
+  vapply(labels, function(lab) {
+    paste(strwrap(lab, width = width), collapse = "\n")
+  }, character(1), USE.NAMES = FALSE)
+}
+
+.cluster_event_dates <- function(dates, radius = NULL) {
+  n <- length(dates)
+  cluster_id <- seq_len(n)
+  cluster_x <- dates
+  if (is.null(radius) || !is.finite(radius) || radius <= 0 || n <= 1L) {
+    return(list(id = cluster_id, x = cluster_x))
+  }
+  ord <- order(dates)
+  sorted <- dates[ord]
+  groups <- integer(n)
+  groups[1] <- 1L
+  g <- 1L
+  for (i in seq_len(n)[-1]) {
+    if (sorted[i] - sorted[i - 1L] <= radius) {
+      groups[i] <- g
+    } else {
+      g <- g + 1L
+      groups[i] <- g
+    }
+  }
+  centers <- tapply(sorted, groups, mean)
+  cluster_id[ord] <- groups
+  cluster_x[ord] <- as.numeric(centers[as.character(groups)])
+  list(id = cluster_id, x = cluster_x)
+}
+
 #' Compute year break positions for timeline annotation
 #'
 #' Generates a data frame of year labels suitable for [geom_timeline_year()].
@@ -572,6 +636,7 @@ compute_year_lines <- function(from, to, every = 1L) {
   if (is.null(mapping)) {
     return(list(
       date = default_date,
+      date_end = NULL,
       topic = default_topic,
       group = NULL,
       fill = NULL,
@@ -586,8 +651,11 @@ compute_year_lines <- function(from, to, every = 1L) {
     }
     default
   }
+  # Prefer xend; also accept xmax as an alias for interval end.
+  date_end <- get_col("xend", NULL) %||% get_col("xmax", NULL)
   list(
-    date = get_col("x", default_date),
+    date = get_col("x", default_date) %||% get_col("xmin", default_date),
+    date_end = date_end,
     topic = get_col("label", default_topic),
     group = get_col("group"),
     fill = get_col("fill"),

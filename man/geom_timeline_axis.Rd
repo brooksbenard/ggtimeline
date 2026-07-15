@@ -20,6 +20,8 @@ geom_timeline_axis(
   shape = c("bar", "line"),
   height = 0.42,
   tip_frac = 0.015,
+  tip_style = c("arrow", "flat", "none", "circle"),
+  gradient = FALSE,
   arrow = TRUE,
   start_cap = TRUE,
   arrow_length = grid::unit(0.25, "cm"),
@@ -91,6 +93,16 @@ Ignored for \code{"line"}.}
 
 \item{tip_frac}{Fraction of the axis length used for the right arrow tip.
 Smaller values yield a shorter, less stretched head. Default \code{0.015}.}
+
+\item{tip_style}{Shape of the right end of a bar axis: \code{"arrow"} (default,
+a normal flared tip), \code{"flat"} / \code{"none"} (square end, no flare), or
+\code{"circle"} (rectangle body ending just before \code{xmax} plus a circular cap).
+Ignored for \code{shape = "line"}.}
+
+\item{gradient}{If \code{TRUE}, fill the bar axis with a left-to-right linear
+gradient (light to \code{fill}) instead of a solid colour. Requires
+R >= 4.1 (uses \code{\link[grid:patterns]{grid::linearGradient()}}); falls back to a solid fill
+with a one-time warning on older R. Ignored for \code{shape = "line"}.}
 
 \item{arrow}{If \code{TRUE} and \code{shape = "line"}, draw a closed arrowhead at the
 right end. For \code{"bar"}, the tip is always drawn as part of the polygon.}

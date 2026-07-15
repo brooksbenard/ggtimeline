@@ -1,0 +1,63 @@
+url: https://brooksbenard.github.io/ggtimeline/
+
+template:
+  bootstrap: 5
+  logo: logo.png
+
+home:
+  title: ggtimeline
+  description: >
+    Publication-ready timeline charts for ggplot2 — thick arrow axis, boxed
+    labels, era bands, and stacked placement.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    articles:
+      text: Gallery
+      menu:
+        - text: Methods timeline (demo)
+          href: articles/methods-timeline.html
+        - text: Clinical / project timelines (planned)
+          href: articles/planned-gallery.html
+
+reference:
+  - title: High-level interface
+    contents:
+      - ggtimeline
+      - ggtimeline_data
+      - ggtimeline_swimlane
+      - ggtimeline_gantt
+      - facet_timeline
+  - title: Annotations
+    contents:
+      - add_milestone
+      - add_span
+      - geom_timeline_span
+  - title: Geoms and stats
+    contents:
+      - starts_with("geom_timeline")
+      - starts_with("stat_timeline")
+      - starts_with("GeomTimeline")
+      - StatTimeline
+  - title: Scales and themes
+    contents:
+      - starts_with("scale_timeline")
+      - timeline_palette
+      - timeline_group_guide
+      - theme_timeline
+  - title: Data helpers
+    contents:
+      - phenotype_methods_timeline
+      - from_openalex
+      - from_pubmed
+      - compute_year_breaks
+      - compute_year_lines
+
+articles:
+  - title: Gallery
+    contents:
+      - methods-timeline
+      - planned-gallery

@@ -5,7 +5,22 @@ utils::globalVariables(c(
   ".timeline_label_y",
   ".timeline_side",
   ".timeline_year_side",
+  ".timeline_anchor_x",
+  ".timeline_span_y",
+  ".timeline_stem_y",
+  ".timeline_text_x",
+  ".timeline_x_start",
+  ".timeline_x_end",
+  ".gantt_xmin",
+  ".gantt_xmax",
+  ".gantt_y",
   "xmin",
   "xmax",
-  "y"
+  "x",
+  "xend",
+  "y",
+  "yend",
+  "ymin",
+  "ymax",
+  "label"
 ))

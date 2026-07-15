@@ -9,9 +9,10 @@
 #'
 #' @param data A data frame containing timeline events.
 #' @param mapping An [ggplot2::aes()] mapping. Required aesthetics are
-#'   `x` (date) and `label` (topic text). Optional aesthetics include
-#'   `colour`, `fill`, `shape`, `size`, `linetype`, `alpha`, and `group`
-#'   for shared styling.
+#'   `x` (start date) and `label` (topic text). Optional `xend` (or `xmax`)
+#'   marks interval events drawn as horizontal span bars; labels and connectors
+#'   anchor at the interval midpoint. Other optional aesthetics include
+#'   `colour`, `fill`, `shape`, `size`, `linetype`, `alpha`, and `group`.
 #' @param style Visualisation type. Currently only `"ribbon"` is available.
 #' @param side Label placement: `"auto"` (default), `"alternate"`, `"above"`,
 #'   or `"below"`.
@@ -45,7 +46,10 @@
 #' @param show_points If `TRUE`, draw event markers where connectors meet the
 #'   axis. Defaults to `FALSE` (clean stems). When a `shape` aesthetic is
 #'   mapped and points are shown, markers use that scale and sit on the bar
-#'   edge (not the ribbon centre).
+#'   edge (not the ribbon centre). For intervals, markers sit at the midpoint.
+#' @param span_height Vertical half-thickness of interval span bars in y-units.
+#'   Ignored for point events. Defaults to `0.12`.
+#' @param span_alpha Opacity of interval span bars (0–1). Defaults to `0.8`.
 #' @param eras Optional data frame of background era bands with `start`/`end`
 #'   (or `xmin`/`xmax`) and optional `label`, `fill`/`colour`, and `alpha`
 #'   columns. See [geom_timeline_era()].
@@ -91,6 +95,41 @@
 #'   event (a small fraction of this pad); the right side still grows enough to
 #'   clear labels and the arrow tip.
 #' @param background Plot background colour.
+#' @param label_wrap Character width to wrap topic labels at (via
+#'   [base::strwrap()] / `stringr::str_wrap()` when available). `NULL`
+#'   (default) leaves labels unwrapped.
+#' @param cluster_radius Numeric radius (in date units, e.g. days) within
+#'   which nearby event dates are treated as one visual cluster: their
+#'   labels snap to a shared x position (per side) while stems still
+#'   originate from each event's own date. `NULL` (default) disables
+#'   clustering.
+#' @param connector_type Connector style: `"straight"`, `"elbow"`, `"curved"`,
+#'   or `"none"` (omit connectors entirely). When set, overrides `elbowed`.
+#' @param label_box Controls label boxing. `NULL` (default) uses the style
+#'   default (boxed for `"ribbon"`). `TRUE`/`FALSE` force boxed/plain labels.
+#'   `"shadow"` boxes labels and draws a soft offset darker rectangle behind
+#'   each box for a drop-shadow effect.
+#' @param label_box_fill Fixed fill colour for label boxes. `NULL` (default)
+#'   keeps the mapped `fill` aesthetic (e.g. by category) and its legend.
+#'   Setting a fixed colour disables the fill legend for this layer.
+#' @param label_box_colour Text/border colour for label boxes. Defaults to
+#'   `"white"`.
+#' @param label_box_alpha Opacity for label boxes. `NULL` keeps the default
+#'   (opaque).
+#' @param label_box_radius Corner radius (points) for label boxes. Defaults
+#'   to `4`.
+#' @param axis_tip_style Shape of the bar axis tip: `"arrow"` (default),
+#'   `"flat"` / `"none"` (square end), or `"circle"` (rounded cap). Ignored
+#'   for `axis_shape = "line"`.
+#' @param axis_gradient If `TRUE`, fill the bar axis with a left-to-right
+#'   linear gradient instead of a solid colour (requires R >= 4.1).
+#' @param era_label_position Where era labels sit within their band:
+#'   `"top"` (default), `"bottom"`, or `"center"`.
+#' @param era_border Controls era band boundary edges: `TRUE` (default)
+#'   draws tinted dashed edges, `FALSE` omits them, or a colour string draws
+#'   edges in that fixed colour.
+#' @param era_label_angle Rotation angle (degrees) for era labels. Default
+#'   `0`.
 #' @return A [ggplot2::ggplot()] object that can be further customised with
 #'   standard ggplot2 layers, scales, and themes.
 #' @export
@@ -117,6 +156,20 @@
 #' ) +
 #'   scale_timeline_fill() +
 #'   scale_timeline_shape()
+#'
+#' # Interval events (start + end → span bars)
+#' trials <- data.frame(
+#'   start = as.Date(c("2021-01-01", "2022-06-01")),
+#'   end = as.Date(c("2021-09-01", "2023-02-01")),
+#'   topic = c("Phase I", "Phase II"),
+#'   arm = c("A", "B")
+#' )
+#' ggtimeline(
+#'   trials,
+#'   aes(x = start, xend = end, label = topic, fill = arm),
+#'   year_breaks = "1 year"
+#' ) +
+#'   scale_timeline_fill()
 #' }
 ggtimeline <- function(data,
                        mapping,
@@ -140,6 +193,8 @@ ggtimeline <- function(data,
                        connector_colour = NULL,
                        connector_size = 0.45,
                        show_points = NULL,
+                       span_height = 0.12,
+                       span_alpha = 0.8,
                        eras = NULL,
                        era_alpha = 0.16,
                        era_label_size = NULL,
@@ -159,7 +214,20 @@ ggtimeline <- function(data,
                        date_breaks = ggplot2::waiver(),
                        date_labels = "%Y",
                        expand = 0.1,
-                       background = "white") {
+                       background = "white",
+                       label_wrap = NULL,
+                       cluster_radius = NULL,
+                       connector_type = NULL,
+                       label_box = NULL,
+                       label_box_fill = NULL,
+                       label_box_colour = NULL,
+                       label_box_alpha = NULL,
+                       label_box_radius = NULL,
+                       axis_tip_style = NULL,
+                       axis_gradient = NULL,
+                       era_label_position = NULL,
+                       era_border = NULL,
+                       era_label_angle = NULL) {
   style <- match.arg(style, "ribbon")
   side <- match.arg(side)
   style_params <- .timeline_style_params(style)
@@ -168,9 +236,36 @@ ggtimeline <- function(data,
     rlang::abort("`mapping` must be supplied.")
   }
 
+  # Resolve style/box/connector/axis/era extras (see ROADMAP.md for context).
+  is_shadow_box <- identical(label_box, "shadow")
+  label_box_resolved <- if (is.null(label_box)) {
+    isTRUE(style_params$label_box)
+  } else if (is_shadow_box) {
+    TRUE
+  } else {
+    isTRUE(label_box)
+  }
+  if (!is.null(axis_tip_style)) {
+    axis_tip_style <- match.arg(axis_tip_style, c("arrow", "flat", "none", "circle"))
+  } else {
+    axis_tip_style <- "arrow"
+  }
+  axis_gradient <- isTRUE(axis_gradient)
+  if (!is.null(era_label_position)) {
+    era_label_position <- match.arg(era_label_position, c("top", "bottom", "center"))
+  } else {
+    era_label_position <- "top"
+  }
+  era_border <- if (is.null(era_border)) TRUE else era_border
+  era_label_angle <- era_label_angle %||% 0
+
   cols <- .resolve_cols(data, mapping)
   if (!cols$date %in% names(data)) {
     rlang::abort(sprintf("Column '%s' not found in `data`.", cols$date))
+  }
+  has_intervals <- !is.null(cols$date_end) && cols$date_end %in% names(data)
+  if (!is.null(cols$date_end) && !has_intervals) {
+    rlang::abort(sprintf("Interval end column '%s' not found in `data`.", cols$date_end))
   }
 
   mapping_names <- .get_mapping_names(mapping)
@@ -182,10 +277,22 @@ ggtimeline <- function(data,
   if (!label_col %in% names(data)) {
     rlang::abort(sprintf("Label column '%s' not found in `data`.", label_col))
   }
+  if (!is.null(label_wrap)) {
+    # Wrap in place so layout sizing and the plotted text stay in sync.
+    data[[label_col]] <- .wrap_labels(data[[label_col]], label_wrap)
+  }
+  if (is.null(span_height) || !is.finite(span_height) || span_height <= 0) {
+    span_height <- 0.12
+  }
+  if (is.null(span_alpha) || !is.finite(span_alpha)) {
+    span_alpha <- 0.8
+  }
+  span_alpha <- max(0, min(1, span_alpha))
 
   if (is.null(elbowed)) {
     elbowed <- isTRUE(style_params$elbowed_default)
   }
+  connector_type_resolved <- .resolve_connector_type(elbowed, connector_type)
   if (is.null(label_method)) {
     label_method <- style_params$label_method_default %||% "simple"
   }
@@ -233,7 +340,12 @@ ggtimeline <- function(data,
 
   date_vec <- data[[cols$date]]
   x_num <- .date_to_numeric(date_vec)
-  x_range <- range(x_num, na.rm = TRUE)
+  if (has_intervals) {
+    x_end_num <- .date_to_numeric(data[[cols$date_end]])
+    x_range <- range(c(x_num, x_end_num), na.rm = TRUE)
+  } else {
+    x_range <- range(x_num, na.rm = TRUE)
+  }
   event_span <- diff(x_range)
   if (!is.finite(event_span) || event_span <= 0) {
     event_span <- 365
@@ -259,13 +371,44 @@ ggtimeline <- function(data,
     config = config,
     group_col = cols$group,
     label_size = label_size,
-    boxed = isTRUE(style_params$label_box),
-    label_method = label_method
+    boxed = label_box_resolved,
+    label_method = label_method,
+    date_end_col = if (has_intervals) cols$date_end else NULL
   )
+
+  if (!is.null(cluster_radius) && is.finite(cluster_radius) && cluster_radius > 0) {
+    anchor_num <- .date_to_numeric(layout$.timeline_anchor_x)
+    clustered <- .cluster_event_dates(anchor_num, radius = cluster_radius)
+    cluster_key <- paste(clustered$id, layout$.timeline_side)
+    label_is_date <- inherits(layout$.timeline_label_x, "Date")
+    label_x_num <- .date_to_numeric(layout$.timeline_label_x)
+    text_x_num <- .date_to_numeric(layout$.timeline_text_x)
+    for (key in unique(cluster_key)) {
+      idx <- which(cluster_key == key)
+      if (length(idx) > 1L) {
+        # Snap clustered labels to a shared centre; stems still originate
+        # from each event's own `.timeline_anchor_x`.
+        centre <- mean(label_x_num[idx])
+        text_shift <- centre - label_x_num[idx]
+        label_x_num[idx] <- centre
+        text_x_num[idx] <- text_x_num[idx] + text_shift
+      }
+    }
+    layout$.timeline_label_x <- if (label_is_date) {
+      as.Date(label_x_num, origin = "1970-01-01")
+    } else {
+      label_x_num
+    }
+    layout$.timeline_text_x <- if (label_is_date) {
+      as.Date(text_x_num, origin = "1970-01-01")
+    } else {
+      text_x_num
+    }
+  }
 
   plot_df <- cbind(data, layout)
   # Anchor stems on the thick-bar top/bottom edges; thin line axes keep the
-  # centerline.
+  # centerline. Interval span bars sit just outside that edge.
   if (identical(axis_shape, "bar")) {
     plot_df$y <- ifelse(
       plot_df$.timeline_side == "above",
@@ -275,6 +418,17 @@ ggtimeline <- function(data,
   } else {
     plot_df$y <- axis_y
   }
+  plot_df$.timeline_span_y <- ifelse(
+    plot_df$.timeline_side == "above",
+    plot_df$y + span_height + 0.03,
+    plot_df$y - span_height - 0.03
+  )
+  # Connectors attach to the span outer face for intervals, else the axis edge.
+  plot_df$.timeline_stem_y <- ifelse(
+    plot_df$.timeline_is_interval,
+    plot_df$.timeline_span_y,
+    plot_df$y
+  )
 
   pad <- event_span * expand
   if (!is.finite(pad) || pad <= 0) {
@@ -290,7 +444,7 @@ ggtimeline <- function(data,
     label_size = label_size,
     date_span = plot_span
   )
-  if (isTRUE(style_params$label_box)) {
+  if (label_box_resolved) {
     # Boxed labels are centered on the connector; cap half-width so long
     # labels do not invent a year of empty arrow past the last events.
     half_w <- pmin(label_widths * 0.5, max(event_span * 0.06, 90))
@@ -302,6 +456,16 @@ ggtimeline <- function(data,
     content_max <- max(
       x_range[2],
       max(text_x_num + half_w, na.rm = TRUE)
+    )
+  }
+  if (has_intervals) {
+    content_max <- max(
+      content_max,
+      max(.date_to_numeric(layout$.timeline_x_end), na.rm = TRUE)
+    )
+    label_left <- min(
+      label_left,
+      min(.date_to_numeric(layout$.timeline_x_start), na.rm = TRUE)
     )
   }
 
@@ -386,6 +550,13 @@ ggtimeline <- function(data,
   if (identical(axis_shape, "bar")) {
     y_vals <- c(y_vals, axis_y + axis_height, axis_y - axis_height)
   }
+  if (has_intervals && any(plot_df$.timeline_is_interval)) {
+    y_vals <- c(
+      y_vals,
+      plot_df$.timeline_span_y[plot_df$.timeline_is_interval] + span_height,
+      plot_df$.timeline_span_y[plot_df$.timeline_is_interval] - span_height
+    )
+  }
   if (!is.null(year_df) && nrow(year_df) > 0L) {
     year_y <- ifelse(
       year_df$.timeline_year_side == "inside",
@@ -401,7 +572,7 @@ ggtimeline <- function(data,
   y_range <- range(y_vals, na.rm = TRUE)
   # Account for label glyph/box extent beyond the connector tip, then keep
   # panel padding tight so extreme labels are not surrounded by empty bands.
-  glyph_extent <- if (isTRUE(style_params$label_box)) {
+  glyph_extent <- if (label_box_resolved) {
     max(height_step * 0.55, label_size * 0.14)
   } else {
     max(height_step * 0.25, label_size * 0.08)
@@ -423,8 +594,10 @@ ggtimeline <- function(data,
     era_df$xmin <- pmax(era_df$xmin, axis_df$xmin)
     era_df$xmax <- pmin(era_df$xmax, axis_df$xmax)
     era_df <- era_df[era_df$xmax > era_df$xmin, , drop = FALSE]
-    era_df$ymin <- y_limits[1]
-    era_df$ymax <- y_limits[2]
+  }
+  if (!is.null(era_df) && nrow(era_df) > 0L) {
+    era_df$ymin <- rep(y_limits[1], nrow(era_df))
+    era_df$ymax <- rep(y_limits[2], nrow(era_df))
     # Keep fill/alpha as plain data columns so event fill scales are untouched.
     p <- p + geom_timeline_era(
       data = era_df,
@@ -439,8 +612,10 @@ ggtimeline <- function(data,
       alpha = era_alpha,
       label_size = era_label_size,
       label_colour = era_label_colour,
-      label_y = y_limits[2],
-      show_bounds = TRUE
+      label_position = era_label_position,
+      label_angle = era_label_angle,
+      show_bounds = TRUE,
+      border = era_border
     )
   }
 
@@ -455,6 +630,8 @@ ggtimeline <- function(data,
       shape = axis_shape,
       height = axis_height,
       tip_frac = axis_tip,
+      tip_style = axis_tip_style,
+      gradient = axis_gradient,
       arrow = axis_arrow,
       start_cap = start_cap
     )
@@ -537,21 +714,61 @@ ggtimeline <- function(data,
     )
   }
 
-  p <- p + geom_timeline_connector(
-    data = plot_df,
-    mapping = ggplot2::aes(
-      x = .data[[cols$date]],
-      y = y,
-      .timeline_label_x = .timeline_label_x,
-      .timeline_label_y = .timeline_label_y
-    ),
-    inherit.aes = FALSE,
-    elbowed = elbowed,
-    linetype = style_params$connector_linetype,
-    colour = connector_colour,
-    size = connector_size,
-    stat = "identity"
-  )
+  # Interval bars sit just outside the arrow, before stems/labels.
+  if (has_intervals && any(plot_df$.timeline_is_interval)) {
+    span_df <- plot_df[plot_df$.timeline_is_interval, , drop = FALSE]
+    span_map <- ggplot2::aes(
+      xmin = .timeline_x_start,
+      xmax = .timeline_x_end,
+      y = .timeline_span_y
+    )
+    if (!is.null(cols$fill) && cols$fill %in% names(span_df)) {
+      span_map <- utils::modifyList(
+        span_map,
+        ggplot2::aes(fill = .data[[cols$fill]])
+      )
+    }
+    if (!is.null(cols$colour) && cols$colour %in% names(span_df)) {
+      span_map <- utils::modifyList(
+        span_map,
+        ggplot2::aes(colour = .data[[cols$colour]])
+      )
+    }
+    span_args <- list(
+      data = span_df,
+      mapping = span_map,
+      inherit.aes = FALSE,
+      height = span_height,
+      alpha = span_alpha,
+      show.legend = TRUE
+    )
+    if (is.null(cols$fill) || !cols$fill %in% names(span_df)) {
+      span_args$fill <- style_params$connector_colour %||% "#6B6B66"
+    }
+    if (is.null(cols$colour) || !cols$colour %in% names(span_df)) {
+      span_args$colour <- NA
+    }
+    p <- p + do.call(geom_timeline_span, span_args)
+  }
+
+  if (!identical(connector_type_resolved, "none")) {
+    p <- p + geom_timeline_connector(
+      data = plot_df,
+      mapping = ggplot2::aes(
+        x = .timeline_anchor_x,
+        y = .timeline_stem_y,
+        .timeline_label_x = .timeline_label_x,
+        .timeline_label_y = .timeline_label_y
+      ),
+      inherit.aes = FALSE,
+      elbowed = elbowed,
+      connector_type = connector_type_resolved,
+      linetype = style_params$connector_linetype,
+      colour = connector_colour,
+      size = connector_size,
+      stat = "identity"
+    )
+  }
 
   has_shape <- !is.null(cols$shape) && cols$shape %in% names(plot_df)
   # Draw markers after the bar/connectors so they sit on the ribbon edge.
@@ -570,8 +787,8 @@ ggtimeline <- function(data,
       p <- p + ggplot2::geom_point(
         data = plot_df,
         mapping = ggplot2::aes(
-          x = .data[[cols$date]],
-          y = y,
+          x = .timeline_anchor_x,
+          y = .timeline_stem_y,
           shape = .data[[cols$shape]]
         ),
         inherit.aes = FALSE,
@@ -587,8 +804,8 @@ ggtimeline <- function(data,
       }
       p <- p + geom_timeline_point(
         mapping = ggplot2::aes(
-          x = .data[[cols$date]],
-          y = y
+          x = .timeline_anchor_x,
+          y = .timeline_stem_y
         ),
         stat = "identity",
         shape = point_shape,
@@ -616,27 +833,70 @@ ggtimeline <- function(data,
     )
   }
 
-  if (isTRUE(style_params$label_box)) {
+  if (label_box_resolved) {
+    label_r <- if (!is.null(label_box_radius) && is.finite(label_box_radius)) {
+      grid::unit(label_box_radius, "pt")
+    } else {
+      grid::unit(4, "pt")
+    }
+    box_colour <- label_box_colour %||% "white"
+    use_fixed_fill <- !is.null(label_box_fill)
+    vjust_vec <- ifelse(plot_df$.timeline_side == "above", 0, 1)
+
+    if (isTRUE(is_shadow_box)) {
+      # Soft offset darker copy drawn first so it sits behind the main box.
+      shadow_dx <- max(event_span * 0.006, 6)
+      shadow_dy <- max(height_step * 0.05, 0.025)
+      p <- p + ggplot2::geom_label(
+        mapping = ggplot2::aes(
+          x = .timeline_label_x + shadow_dx,
+          y = .timeline_label_y - shadow_dy,
+          label = .data[[label_col]]
+        ),
+        inherit.aes = FALSE,
+        size = label_size,
+        label.size = 0,
+        label.padding = grid::unit(4, "pt"),
+        label.r = label_r,
+        fontface = "bold",
+        colour = NA,
+        fill = "grey25",
+        alpha = 0.32,
+        vjust = vjust_vec,
+        hjust = 0.5,
+        show.legend = FALSE
+      )
+    }
+
     # Center boxed labels on the connector tip so they are not left-offset.
     # key_glyph = polygon avoids geom_label's default "a" legend glyphs.
-    p <- p + ggplot2::geom_label(
+    label_args <- list(
       mapping = ggplot2::aes(
         x = .timeline_label_x,
         y = .timeline_label_y,
         label = .data[[label_col]]
       ),
-      inherit.aes = TRUE,
+      inherit.aes = !use_fixed_fill,
       size = label_size,
       label.size = 0.12,
       label.padding = grid::unit(4, "pt"),
-      label.r = grid::unit(4, "pt"),
+      label.r = label_r,
       fontface = "bold",
-      colour = "white",
-      vjust = ifelse(plot_df$.timeline_side == "above", 0, 1),
+      colour = box_colour,
+      vjust = vjust_vec,
       hjust = 0.5,
-      show.legend = c(fill = TRUE, shape = FALSE, colour = FALSE),
       key_glyph = "polygon"
     )
+    if (use_fixed_fill) {
+      label_args$fill <- label_box_fill
+      label_args$show.legend <- FALSE
+    } else {
+      label_args$show.legend <- c(fill = TRUE, shape = FALSE, colour = FALSE)
+    }
+    if (!is.null(label_box_alpha) && is.finite(label_box_alpha)) {
+      label_args$alpha <- label_box_alpha
+    }
+    p <- p + do.call(ggplot2::geom_label, label_args)
 
     if (has_shape && !show_points) {
       # Legend-only markers when shapes are mapped but stems stay clean.
@@ -726,25 +986,25 @@ ggtimeline <- function(data,
 
 #' Timeline scale helpers
 #'
-#' @param palette Character vector of colours for timeline categories.
-#'   Defaults to [timeline_palette()].
-#' @param ... Additional arguments passed to [ggplot2::scale_colour_manual()]
-#'   or [ggplot2::scale_fill_manual()].
+#' @param palette Colour specification. May be:
+#'   \itemize{
+#'     \item `NULL` — [timeline_palette()]
+#'     \item a character vector of hex/colours
+#'     \item a named preset: `"okabe"`, `"nature"`, `"nejm"`, `"default"`
+#'       (named presets beyond `"default"` are scaffolded; see ROADMAP.md)
+#'   }
+#' @param ... Additional arguments passed to the underlying ggplot2 scale.
 #' @name timeline_scales
 #' @export
 scale_timeline_colour <- function(palette = NULL, ...) {
-  if (is.null(palette)) {
-    palette <- timeline_palette()
-  }
+  palette <- .resolve_timeline_palette(palette)
   ggplot2::scale_colour_manual(values = palette, ...)
 }
 
 #' @rdname timeline_scales
 #' @export
 scale_timeline_fill <- function(palette = NULL, ...) {
-  if (is.null(palette)) {
-    palette <- timeline_palette()
-  }
+  palette <- .resolve_timeline_palette(palette)
   ggplot2::scale_fill_manual(values = palette, ...)
 }
 
@@ -758,6 +1018,12 @@ scale_timeline_shape <- function(...) {
     ),
     ...
   )
+}
+
+#' @rdname timeline_scales
+#' @export
+scale_timeline_size <- function(...) {
+  ggplot2::scale_size_area(...)
 }
 
 #' @rdname timeline_scales

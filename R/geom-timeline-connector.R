@@ -4,22 +4,29 @@
 #' Requires data processed by [stat_timeline()].
 #'
 #' @inheritParams ggplot2::layer
-#' @param elbowed If `TRUE` (default), draw horizontal-then-vertical elbows;
-#'   if `FALSE`, draw straight diagonal connectors.
+#' @param elbowed If `TRUE`, draw horizontal-then-vertical elbows; if `FALSE`
+#'   (default), draw straight diagonal connectors. May also be `"curved"` as
+#'   an alias for `connector_type = "curved"`.
+#' @param connector_type Connector style: `"straight"`, `"elbow"`, `"curved"`,
+#'   or `"none"` (no connector drawn). When set, overrides `elbowed`.
 #' @inheritParams ggplot2::layer
 #' @param size Line width.
 #' @param colour Line colour.
 #' @param linetype Line type.
+#' @param curvature Curvature passed to [grid::curveGrob()] when
+#'   `connector_type = "curved"` (or `elbowed = "curved"`). Default `0.3`.
 #' @param ... Additional arguments passed to [ggplot2::layer()].
 #' @export
 #' @rdname geom_timeline_connector
 geom_timeline_connector <- function(mapping = NULL, data = NULL,
                                     stat = "timeline",
                                     position = "identity",
-                                    elbowed = TRUE,
+                                    elbowed = FALSE,
+                                    connector_type = NULL,
                                     size = 0.4,
                                     colour = "grey50",
                                     linetype = 1,
+                                    curvature = 0.3,
                                     show.legend = FALSE,
                                     inherit.aes = TRUE,
                                     ...) {
@@ -33,12 +40,28 @@ geom_timeline_connector <- function(mapping = NULL, data = NULL,
     inherit.aes = inherit.aes,
     params = list(
       elbowed = elbowed,
+      connector_type = connector_type,
       size = size,
       colour = colour,
       linetype = linetype,
+      curvature = curvature,
       ...
     )
   )
+}
+
+# Normalise elbowed/connector_type into one of "straight","elbow","curved","none".
+.resolve_connector_type <- function(elbowed = FALSE, connector_type = NULL) {
+  if (!is.null(connector_type)) {
+    return(match.arg(connector_type, c("straight", "curved", "elbow", "none")))
+  }
+  if (identical(elbowed, "curved")) {
+    return("curved")
+  }
+  if (isTRUE(elbowed)) {
+    return("elbow")
+  }
+  "straight"
 }
 
 #' @rdname geom_timeline_connector
@@ -57,11 +80,18 @@ GeomTimelineConnector <- ggplot2::ggproto(
 
   draw_key = ggplot2::draw_key_path,
 
-  extra_params = c("na.rm", "elbowed"),
+  extra_params = c("na.rm", "elbowed", "connector_type", "curvature"),
 
-  draw_panel = function(data, panel_params, coord, elbowed = TRUE,
-                        size = 0.4, colour = "grey50", linetype = 1, ...) {
+  draw_panel = function(data, panel_params, coord, elbowed = FALSE,
+                        connector_type = NULL,
+                        size = 0.4, colour = "grey50", linetype = 1,
+                        curvature = 0.3, ...) {
     if (nrow(data) == 0L) {
+      return(grid::nullGrob())
+    }
+
+    type <- .resolve_connector_type(elbowed, connector_type)
+    if (identical(type, "none")) {
       return(grid::nullGrob())
     }
 
@@ -77,7 +107,28 @@ GeomTimelineConnector <- ggplot2::ggproto(
       label_x <- if (".timeline_label_x" %in% names(row)) row$.timeline_label_x else anchor_x
       label_y <- row$.timeline_label_y
 
-      if (isTRUE(elbowed)) {
+      if (identical(type, "curved")) {
+        pts <- ggplot2::coord_munch(
+          coord,
+          data.frame(x = c(anchor_x, label_x), y = c(row$y, label_y)),
+          panel_params
+        )
+        grobs[[i]] <- grid::curveGrob(
+          x1 = pts$x[1], y1 = pts$y[1],
+          x2 = pts$x[2], y2 = pts$y[2],
+          curvature = curvature,
+          square = FALSE,
+          gp = grid::gpar(
+            col = alpha(line_colour, alpha_val),
+            lwd = line_size * ggplot2::.pt,
+            lty = line_lty,
+            lineend = "round"
+          )
+        )
+        next
+      }
+
+      if (identical(type, "elbow")) {
         if (abs(.date_to_numeric(label_x) - .date_to_numeric(anchor_x)) > 1e-6) {
           seg_list <- list(
             data.frame(x = c(anchor_x, anchor_x), y = c(row$y, label_y)),
