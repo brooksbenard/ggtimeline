@@ -46,7 +46,6 @@ ggtimeline(
 
 <img src="man/figures/demo-phenotype-methods.png" alt="Phenotype mapping methods timeline" width="100%" />
 
-
 ## Input data
 
 | Column | Role |
@@ -72,12 +71,6 @@ Year tick styling: `year_line_colour`, `year_line_width`, `year_line_alpha`.
 
 Plots are standard `ggplot` objects—add `labs()`, scales, and themes as usual.
 
-```r
-ggtimeline(..., year_breaks = "1 year", eras = eras) +
-  scale_timeline_fill() +
-  labs(title = "Phenotype mapping methods (2020\u20132026)")
-```
-
 ## Interval / range events
 
 Map `xend` (or `xmax`) to draw horizontal span bars for intervals. Labels and
@@ -101,10 +94,12 @@ ggtimeline(
   scale_timeline_fill()
 ```
 
+<img src="man/figures/demo-intervals.png" alt="Interval events timeline" width="100%" />
+
 ## Annotations, themes, and label styling
 
 ```r
-p <- ggtimeline(
+ggtimeline(
   phenotype_methods_timeline,
   aes(x = date, label = topic, fill = category),
   label_wrap = 18,
@@ -119,6 +114,8 @@ p <- ggtimeline(
   theme_timeline("nature")
 ```
 
+<img src="man/figures/demo-annotations.png" alt="Annotated timeline with curved connectors" width="100%" />
+
 - `label_wrap` wraps long topic labels at a fixed character width.
 - `cluster_radius` snaps nearby event labels to a shared x position while
   connector stems still originate from each event's own date.
@@ -132,25 +129,42 @@ p <- ggtimeline(
   `"default"`, `"okabe"`, `"nature"`, `"nejm"`, or a custom colour vector.
 - `theme_timeline()` provides `"minimal"`, `"nature"`, and `"dark"` presets.
 
-## Swimlanes, Gantt, and faceting
+## Swimlanes
 
 ```r
-# One arrow lane per category, stacked on a shared date axis
 ggtimeline_swimlane(
   phenotype_methods_timeline,
   aes(x = date, label = topic, group = category, fill = category)
-)
+) +
+  scale_timeline_fill()
+```
 
-# One horizontal bar per row, Gantt-style
+<img src="man/figures/demo-swimlane.png" alt="Swimlane timeline by category" width="100%" />
+
+## Gantt chart
+
+```r
 ggtimeline_gantt(
   trials,
   aes(x = start, xend = end, label = topic, fill = arm)
-)
-
-# Per-panel faceting on top of a regular ggtimeline() plot
-ggtimeline(phenotype_methods_timeline, aes(x = date, label = topic, fill = category)) +
-  facet_timeline(~category)
+) +
+  scale_timeline_fill()
 ```
+
+<img src="man/figures/demo-gantt.png" alt="Gantt-style project timeline" width="100%" />
+
+## Faceted timeline
+
+```r
+ggtimeline(
+  phenotype_methods_timeline,
+  aes(x = date, label = topic, fill = category)
+) +
+  facet_timeline(~category) +
+  scale_timeline_fill()
+```
+
+<img src="man/figures/demo-facet.png" alt="Faceted timeline by category" width="100%" />
 
 ## Importing publication data
 
@@ -162,11 +176,7 @@ from_openalex(c("10.1038/s41586-020-2649-2", "W2741809807"))
 from_pubmed(c("32015508", "31978945"))
 ```
 
-## Roadmap
-
-See [`ROADMAP.md`](ROADMAP.md) for implementation notes and known
-limitations (e.g. dense swimlane label overlap, gradient axis fill requiring
-R >= 4.1). Helpers already usable:
+Helpers for tidy input:
 
 ```r
 ggtimeline_data(df, date = "date", label = "topic")

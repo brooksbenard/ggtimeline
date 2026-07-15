@@ -18,10 +18,10 @@ navbar:
     articles:
       text: Gallery
       menu:
-        - text: Methods timeline (demo)
+        - text: Methods timeline
           href: articles/methods-timeline.html
-        - text: Clinical / project timelines (planned)
-          href: articles/planned-gallery.html
+        - text: Gallery examples
+          href: articles/gallery.html
 
 reference:
   - title: High-level interface
@@ -60,4 +60,4 @@ articles:
   - title: Gallery
     contents:
       - methods-timeline
-      - planned-gallery
+      - gallery

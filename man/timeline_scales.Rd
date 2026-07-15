@@ -27,7 +27,7 @@ timeline_group_guide(
 \item \code{NULL} — \code{\link[=timeline_palette]{timeline_palette()}}
 \item a character vector of hex/colours
 \item a named preset: \code{"okabe"}, \code{"nature"}, \code{"nejm"}, \code{"default"}
-(named presets beyond \code{"default"} are scaffolded; see ROADMAP.md)
+(or a custom colour vector)
 }}
 
 \item{...}{Additional arguments passed to the underlying ggplot2 scale.}

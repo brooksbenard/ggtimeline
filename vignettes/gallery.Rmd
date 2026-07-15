@@ -1,0 +1,91 @@
+---
+title: "Gallery examples"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Gallery examples}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 8,
+  fig.height = 4.5,
+  dpi = 96,
+  out.width = "100%"
+)
+```
+
+Example figures for the main `ggtimeline` surfaces. Static PNG copies used in
+the package README live under `man/figures/demo-*.png`.
+
+```{r setup}
+library(ggplot2)
+library(ggtimeline)
+```
+
+## Interval events with milestones
+
+```{r intervals, fig.alt = "Interval timeline with a milestone marker"}
+trials <- data.frame(
+  start = as.Date(c("2021-01-01", "2022-06-01", "2023-01-01")),
+  end   = as.Date(c("2021-09-01", "2023-02-01", "2023-11-01")),
+  topic = c("Phase I", "Phase II", "Phase III"),
+  arm   = c("A", "A", "B")
+)
+
+ggtimeline(
+  trials,
+  aes(x = start, xend = end, label = topic, fill = arm),
+  year_breaks = "1 year",
+  span_height = 0.12
+) +
+  scale_timeline_fill() +
+  add_milestone(as.Date("2022-06-01"), label = "IND filing") +
+  labs(title = "Clinical intervals with a milestone")
+```
+
+## Swimlanes
+
+```{r swimlanes, fig.height = 7, fig.alt = "Swimlane timeline by category"}
+data("phenotype_methods_timeline")
+
+ggtimeline_swimlane(
+  phenotype_methods_timeline,
+  aes(x = date, label = topic, group = category, fill = category),
+  lane_spacing = 3,
+  year_breaks = "1 year",
+  label_size = 2.6
+) +
+  scale_timeline_fill() +
+  labs(title = "One ribbon lane per category")
+```
+
+## Gantt chart
+
+```{r gantt, fig.height = 3.8, fig.alt = "Gantt-style project timeline"}
+ggtimeline_gantt(
+  trials,
+  aes(x = start, xend = end, label = topic, fill = arm)
+) +
+  scale_timeline_fill() +
+  labs(title = "Gantt layout")
+```
+
+## Faceted timeline
+
+```{r facet, fig.height = 8, fig.alt = "Faceted timeline by category"}
+ggtimeline(
+  phenotype_methods_timeline,
+  aes(x = date, label = topic, fill = category),
+  year_breaks = "1 year",
+  label_size = 2.4,
+  base_height = 0.85,
+  height_step = 0.65
+) +
+  facet_timeline(~category) +
+  scale_timeline_fill() +
+  labs(title = "Faceted ribbon panels")
+```

@@ -236,7 +236,7 @@ ggtimeline <- function(data,
     rlang::abort("`mapping` must be supplied.")
   }
 
-  # Resolve style/box/connector/axis/era extras (see ROADMAP.md for context).
+  # Resolve style/box/connector/axis/era extras.
   is_shadow_box <- identical(label_box, "shadow")
   label_box_resolved <- if (is.null(label_box)) {
     isTRUE(style_params$label_box)
@@ -991,7 +991,7 @@ ggtimeline <- function(data,
 #'     \item `NULL` — [timeline_palette()]
 #'     \item a character vector of hex/colours
 #'     \item a named preset: `"okabe"`, `"nature"`, `"nejm"`, `"default"`
-#'       (named presets beyond `"default"` are scaffolded; see ROADMAP.md)
+#'       (or a custom colour vector)
 #'   }
 #' @param ... Additional arguments passed to the underlying ggplot2 scale.
 #' @name timeline_scales
