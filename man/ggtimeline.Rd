@@ -22,6 +22,8 @@ ggtimeline(
   axis_width = NULL,
   axis_tip = NULL,
   axis_fill = NULL,
+  axis_colour = NULL,
+  axis_color = NULL,
   axis_arrow = TRUE,
   start_cap = NULL,
   connector_colour = NULL,
@@ -37,6 +39,7 @@ ggtimeline(
   year_labels = NULL,
   year_side = NULL,
   year_size = 4.8,
+  year_colour = NULL,
   year_colours = NULL,
   year_offset = 0.32,
   year_lines = FALSE,
@@ -108,11 +111,14 @@ years fit inside) or \code{"line"}. Defaults by style.}
 arrow in y-units. \code{axis_width} is an alias for \code{axis_height}; if both are
 set, \code{axis_width} wins.}
 
-\item{axis_tip}{Fraction of the axis length used for the right arrowhead
-depth. Smaller values give a shorter, less stretched tip. Defaults to
-\code{0.015}.}
+\item{axis_tip}{Tip-size multiplier for the right arrowhead. Tip depth
+scales primarily with \code{axis_height} / \code{axis_width} (thicker arrows get
+larger heads); values below/above \code{0.015} shorten/lengthen the tip.}
 
 \item{axis_fill}{Interior fill colour of the bar arrow.}
+
+\item{axis_colour, axis_color}{Outline colour of the timeline arrow.
+\code{axis_color} is an alias for \code{axis_colour}.}
 
 \item{axis_arrow}{If \code{TRUE} (default), draw a closed arrowhead at the
 right end when \code{axis_shape = "line"}. Bar tips are always drawn.}
@@ -159,8 +165,10 @@ styles; years sit in the arrow body), \code{"alternate"}, \code{"above"}, or
 
 \item{year_size}{Year label text size.}
 
-\item{year_colours}{Optional character vector of colours for year labels.
-Defaults to the axis colour when \code{year_side = "inside"}.}
+\item{year_colour, year_colours}{Colour(s) for year labels. A single colour
+(\code{year_colour}) tints every year the same. A character vector
+(\code{year_colours}) cycles across years. Defaults to the axis colour when
+\code{year_side = "inside"}.}
 
 \item{year_offset}{Distance of year labels from the axis in y-units.
 Ignored when \code{year_side = "inside"}.}

@@ -63,7 +63,9 @@ ggtimeline(
 | `year_breaks` | In-arrow year labels (`"1 year"`, `"auto"`, or explicit years) |
 | `year_lines` | In-arrow dashed year-boundary ticks (`TRUE`, `1`, `"2 years"`, …) |
 | `show_points` | Publication-status (or other) markers on the arrow edges |
-| `axis_width` / `axis_tip` | Arrow thickness and tip depth |
+| `axis_width` / `axis_tip` | Arrow thickness; tip depth scales with thickness |
+| `axis_fill` / `axis_colour` | Arrow fill and outline colour |
+| `year_colour` / `year_colours` | Year-label colour (single or per-year vector) |
 | `connector_colour` / `connector_size` | Stem colour and width |
 | `side`, `base_height`, `height_step` | Label placement and stacking |
 

@@ -32,10 +32,12 @@
 #' @param axis_height,axis_width Half-height (vertical thickness) of the bar
 #'   arrow in y-units. `axis_width` is an alias for `axis_height`; if both are
 #'   set, `axis_width` wins.
-#' @param axis_tip Fraction of the axis length used for the right arrowhead
-#'   depth. Smaller values give a shorter, less stretched tip. Defaults to
-#'   `0.015`.
+#' @param axis_tip Tip-size multiplier for the right arrowhead. Tip depth
+#'   scales primarily with `axis_height` / `axis_width` (thicker arrows get
+#'   larger heads); values below/above `0.015` shorten/lengthen the tip.
 #' @param axis_fill Interior fill colour of the bar arrow.
+#' @param axis_colour,axis_color Outline colour of the timeline arrow.
+#'   `axis_color` is an alias for `axis_colour`.
 #' @param axis_arrow If `TRUE` (default), draw a closed arrowhead at the
 #'   right end when `axis_shape = "line"`. Bar tips are always drawn.
 #' @param start_cap If `TRUE`, draw a filled dot at the left origin of a line
@@ -66,8 +68,10 @@
 #'   styles; years sit in the arrow body), `"alternate"`, `"above"`, or
 #'   `"below"`.
 #' @param year_size Year label text size.
-#' @param year_colours Optional character vector of colours for year labels.
-#'   Defaults to the axis colour when `year_side = "inside"`.
+#' @param year_colour,year_colours Colour(s) for year labels. A single colour
+#'   (`year_colour`) tints every year the same. A character vector
+#'   (`year_colours`) cycles across years. Defaults to the axis colour when
+#'   `year_side = "inside"`.
 #' @param year_offset Distance of year labels from the axis in y-units.
 #'   Ignored when `year_side = "inside"`.
 #' @param year_lines Optional dashed vertical year-boundary ticks drawn
@@ -188,6 +192,8 @@ ggtimeline <- function(data,
                        axis_width = NULL,
                        axis_tip = NULL,
                        axis_fill = NULL,
+                       axis_colour = NULL,
+                       axis_color = NULL,
                        axis_arrow = TRUE,
                        start_cap = NULL,
                        connector_colour = NULL,
@@ -203,6 +209,7 @@ ggtimeline <- function(data,
                        year_labels = NULL,
                        year_side = NULL,
                        year_size = 4.8,
+                       year_colour = NULL,
                        year_colours = NULL,
                        year_offset = 0.32,
                        year_lines = FALSE,
@@ -316,6 +323,16 @@ ggtimeline <- function(data,
   }
   if (is.null(axis_fill)) {
     axis_fill <- style_params$axis_fill %||% "white"
+  }
+  if (!is.null(axis_color) && is.null(axis_colour)) {
+    axis_colour <- axis_color
+  }
+  if (is.null(axis_colour)) {
+    axis_colour <- style_params$axis_color %||% "#6B6B66"
+  }
+  # Singular year_colour overrides a cycling year_colours vector.
+  if (!is.null(year_colour)) {
+    year_colours <- year_colour
   }
   if (is.null(start_cap)) {
     start_cap <- isTRUE(style_params$start_cap)
@@ -469,7 +486,7 @@ ggtimeline <- function(data,
     )
   }
 
-  tip_len <- max(event_span * axis_tip * 1.25, 35)
+  tip_len <- .timeline_tip_length(axis_height, axis_tip, event_span) * 1.15
   # Keep the left edge close to the first event. `expand` mainly affects the
   # overall scale; left clearance is a light fraction of that pad.
   left_pad <- max(min(pad * 0.22, event_span * 0.02), 14)
@@ -493,9 +510,9 @@ ggtimeline <- function(data,
   year_df <- NULL
   if (!is.null(year_breaks)) {
     if (is.null(year_colours)) {
-      if (identical(year_side, "inside") &&
-            !is.null(style_params$year_colour_default)) {
-        year_colours <- style_params$year_colour_default
+      # Inside the arrow, years inherit the arrow colour; outside they cycle.
+      if (identical(year_side, "inside")) {
+        year_colours <- axis_colour
       } else {
         year_colours <- timeline_palette()[seq_len(10)]
       }
@@ -523,7 +540,7 @@ ggtimeline <- function(data,
       year_x <- .date_to_numeric(year_df$x)
       x_min <- min(x_min, min(year_x, na.rm = TRUE) - year_buf)
       body_max <- max(content_max, max(year_x, na.rm = TRUE) + year_buf)
-      tip_len <- max(event_span * axis_tip * 1.25, 35)
+      tip_len <- .timeline_tip_length(axis_height, axis_tip, event_span) * 1.15
       x_max <- body_max + tip_len
       axis_df$xmin <- as.Date(x_min, origin = "1970-01-01")
       axis_df$xmax <- as.Date(x_max, origin = "1970-01-01")
@@ -625,7 +642,7 @@ ggtimeline <- function(data,
       mapping = ggplot2::aes(xmin = xmin, xmax = xmax, y = y),
       inherit.aes = FALSE,
       size = style_params$axis_size,
-      colour = style_params$axis_color,
+      colour = axis_colour,
       fill = axis_fill,
       shape = axis_shape,
       height = axis_height,
@@ -669,8 +686,10 @@ ggtimeline <- function(data,
         line_ymax <- axis_y + 0.06
       }
       tip_cut <- .date_to_numeric(axis_df$xmax) -
-        max((.date_to_numeric(axis_df$xmax) - .date_to_numeric(axis_df$xmin)) *
-              axis_tip, 18)
+        .timeline_tip_length(
+          axis_height, axis_tip,
+          .date_to_numeric(axis_df$xmax) - .date_to_numeric(axis_df$xmin)
+        )
       line_xs <- line_xs[.date_to_numeric(line_xs) <= tip_cut]
       if (length(line_xs) > 0L && line_ymax > line_ymin) {
         year_line_df <- data.frame(
@@ -693,7 +712,8 @@ ggtimeline <- function(data,
   }
 
   if (!is.null(year_df) && nrow(year_df) > 0L) {
-    year_colour_default <- style_params$year_colour_default %||%
+    year_colour_default <- axis_colour %||%
+      style_params$year_colour_default %||%
       style_params$axis_color
     if ("colour" %in% names(year_df)) {
       year_df$.timeline_year_colour <- year_df$colour
@@ -773,7 +793,7 @@ ggtimeline <- function(data,
   has_shape <- !is.null(cols$shape) && cols$shape %in% names(plot_df)
   # Draw markers after the bar/connectors so they sit on the ribbon edge.
   if (show_points) {
-    point_colour <- style_params$axis_color %||% "grey35"
+    point_colour <- axis_colour %||% style_params$axis_color %||% "grey35"
     point_fill <- style_params$point_fill
     if (is.null(point_fill) || is.na(point_fill)) {
       point_fill <- "white"

@@ -11,8 +11,9 @@
 #'   `"line"` (thin horizontal line).
 #' @param height Half-height (vertical thickness) of the bar ribbon in y-units.
 #'   Ignored for `"line"`.
-#' @param tip_frac Fraction of the axis length used for the right arrow tip.
-#'   Smaller values yield a shorter, less stretched head. Default `0.015`.
+#' @param tip_frac Multiplier for tip depth. Tip length scales primarily with
+#'   bar `height` (thicker arrows get longer heads); `tip_frac` adjusts that
+#'   size relative to the default `0.015`.
 #' @param tip_style Shape of the right end of a bar axis: `"arrow"` (default,
 #'   a normal flared tip), `"flat"` / `"none"` (square end, no flare), or
 #'   `"circle"` (rectangle body ending just before `xmax` plus a circular cap).
@@ -74,6 +75,24 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
   )
 }
 
+# Tip depth (in date/x units) scales with bar half-height so thicker arrows
+# get proportionally larger heads. `tip_frac` modulates that size vs default.
+.timeline_tip_length <- function(height, tip_frac = 0.015, span = Inf) {
+  half <- max(as.numeric(height)[1], 1e-6)
+  tip_frac <- if (is.null(tip_frac) || !is.finite(tip_frac) || tip_frac <= 0) {
+    0.015
+  } else {
+    tip_frac
+  }
+  # ~55 days of tip length at height = 0.5 and tip_frac = 0.015.
+  tip <- half * 110 * (tip_frac / 0.015)
+  tip <- max(tip, half * 40)
+  if (is.finite(span) && span > 0) {
+    tip <- min(tip, span * 0.12)
+  }
+  tip
+}
+
 # Thick rectangular body with a compact right-pointing arrow tip.
 .bar_arrow_vertices <- function(xmin, xmax, y, height, tip_frac,
                                 tip_style = "arrow") {
@@ -90,20 +109,19 @@ geom_timeline_axis <- function(mapping = NULL, data = NULL,
   }
 
   if (identical(tip_style, "circle")) {
-    # Reserve room for a circular cap at the right end; body stops short.
-    cap_r <- half
-    body_end <- max(xmax - cap_r * 1.6, xmin)
+    # Cap radius tracks bar thickness; reserve ~1.6r of body clearance.
+    tip <- .timeline_tip_length(half, tip_frac, span)
+    body_end <- max(xmax - tip, xmin)
     return(data.frame(
       x = c(xmin, body_end, body_end, xmin, xmin),
       y = c(y + half, y + half, y - half, y - half, y + half)
     ))
   }
 
-  # Default "arrow": mild flare beyond the bar thickness at the tip.
-  # Keep the tip short even on long timelines so it does not look stretched.
-  tip <- min(max(span * tip_frac, 18), max(span * 0.025, 45))
+  # Default "arrow": tip depth and flare both track bar thickness.
+  tip <- .timeline_tip_length(half, tip_frac, span)
   body_end <- xmax - tip
-  tip_half <- half * 1.2
+  tip_half <- half * 1.25
 
   data.frame(
     x = c(

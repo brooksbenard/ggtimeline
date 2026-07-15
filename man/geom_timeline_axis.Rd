@@ -91,8 +91,9 @@ to use \code{position_jitter()}, give the position as \code{"jitter"}.
 \item{height}{Half-height (vertical thickness) of the bar ribbon in y-units.
 Ignored for \code{"line"}.}
 
-\item{tip_frac}{Fraction of the axis length used for the right arrow tip.
-Smaller values yield a shorter, less stretched head. Default \code{0.015}.}
+\item{tip_frac}{Multiplier for tip depth. Tip length scales primarily with
+bar \code{height} (thicker arrows get longer heads); \code{tip_frac} adjusts that
+size relative to the default \code{0.015}.}
 
 \item{tip_style}{Shape of the right end of a bar axis: \code{"arrow"} (default,
 a normal flared tip), \code{"flat"} / \code{"none"} (square end, no flare), or

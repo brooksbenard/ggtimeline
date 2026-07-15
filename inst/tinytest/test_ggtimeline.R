@@ -236,6 +236,31 @@ expect_true(axis_xmax > last_date + 30)
 expect_true(axis_xmax <= last_date + 400)
 expect_equal(axis_layer$geom_params$height, 0.65)
 expect_equal(axis_layer$geom_params$tip_frac, 0.012)
+# Tip depth grows with arrow height.
+tip_thin <- ggtimeline:::.timeline_tip_length(0.3, 0.015, 2000)
+tip_thick <- ggtimeline:::.timeline_tip_length(0.9, 0.015, 2000)
+expect_true(tip_thick > tip_thin * 2)
+p_col <- ggtimeline(
+  head(phenotype_methods_timeline, 6),
+  aes(x = date, label = topic),
+  year_breaks = "1 year",
+  year_side = "inside",
+  axis_fill = "#FFF4E0",
+  axis_colour = "#8B4513",
+  year_colour = "#1B4F72"
+)
+axis_col_layer <- Filter(
+  function(l) inherits(l$geom, "GeomTimelineAxis"),
+  p_col$layers
+)[[1]]
+expect_equal(axis_col_layer$aes_params$fill %||% axis_col_layer$geom_params$fill, "#FFF4E0")
+expect_equal(axis_col_layer$aes_params$colour %||% axis_col_layer$geom_params$colour, "#8B4513")
+year_col_layer <- Filter(
+  function(l) inherits(l$geom, "GeomTimelineYear"),
+  p_col$layers
+)[[1]]
+expect_true(all(year_col_layer$data$colour == "#1B4F72" |
+  year_col_layer$data$.timeline_year_colour == "#1B4F72"))
 first_date <- min(phenotype_methods_timeline$date, na.rm = TRUE)
 axis_xmin <- min(axis_layer$data$xmin)
 expect_true(as.numeric(first_date - axis_xmin) <= 140)
