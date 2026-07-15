@@ -2,9 +2,6 @@
 
 Publication-ready timeline charts for [ggplot2](https://ggplot2.tidyverse.org/).
 
-Build a thick arrow axis with boxed event labels, optional era bands, in-arrow
-year labels and ticks, and automatic above/below stacking when labels collide.
-
 ## Installation
 
 ```r
@@ -49,11 +46,6 @@ ggtimeline(
 
 <img src="man/figures/demo-phenotype-methods.png" alt="Phenotype mapping methods timeline" width="100%" />
 
-Interactive demo:
-
-```r
-demo(phenotype_methods_timeline)
-```
 
 ## Input data
 
